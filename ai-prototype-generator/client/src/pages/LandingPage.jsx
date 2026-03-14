@@ -137,11 +137,11 @@ function LandingPage() {
                   <div className="w-3 h-3 bg-green-500 rounded-full" />
                 </div>
                 <div className="space-y-3 font-mono text-sm">
-                  <div className="text-slate-400">> Build a meal-planning app for students</div>
+                  <div className="text-slate-400"> Build a meal-planning app for students</div>
                   <div className="text-emerald-400">✓ Generated workflow with roles, requirements, and user flow</div>
-                  <div className="text-slate-400">> Add weekly grocery export and dark mode</div>
+                  <div className="text-slate-400"> Add weekly grocery export and dark mode</div>
                   <div className="text-emerald-400">✓ Merged requirements (Prompts: 2, Merged: 2)</div>
-                  <div className="text-slate-400">> Generate code</div>
+                  <div className="text-slate-400"> Generate code</div>
                   <div className="text-emerald-400">✓ Created index.html, styles.css, app.js</div>
                 </div>
               </div>

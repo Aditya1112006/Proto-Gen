@@ -79,7 +79,7 @@ cd server && npm install && cd ..
 
 **Server** (create `server/.env`):
 ```env
-PORT=5000
+PORT=5001
 NODE_ENV=development
 OPENAI_API_KEY=your_openai_api_key_here
 CORS_ORIGIN=http://localhost:5173
@@ -87,7 +87,7 @@ CORS_ORIGIN=http://localhost:5173
 
 **Client** (create `client/.env`):
 ```env
-VITE_API_URL=http://localhost:5000
+VITE_API_URL=http://localhost:5001
 ```
 
 Copy from the provided examples:
@@ -107,13 +107,33 @@ npm run dev
 
 This starts both:
 - **Client** at http://localhost:5173 (Vite dev server)
-- **Server** at http://localhost:5000 (Express API)
+- **Server** at http://localhost:5001 (Express API)
 
 Or run individually:
 ```bash
 npm run client   # Start frontend only
 npm run server   # Start backend only
 ```
+
+### 4. Run Demo Script
+
+Test the API endpoints without the UI:
+
+```bash
+# Make sure server is running first
+npm run server
+
+# In another terminal
+node demo.js
+```
+
+This runs through all major API endpoints:
+- Health check
+- Generate prototype
+- Merge same-domain prompts
+- Domain change detection
+- Code generation
+- Session management
 
 ## Usage
 
@@ -179,6 +199,82 @@ Get current session state.
 
 ### GET `/api/health`
 Health check endpoint.
+
+## API Examples with curl
+
+### Generate a New Prototype
+
+```bash
+curl -X POST http://localhost:5001/api/prototype/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Build a meal-planning app for busy students",
+    "mode": "workflow"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "domainChanged": false,
+  "metadata": {
+    "title": "Meal Planner",
+    "domain": "food_delivery",
+    "merged_prompt_count": 1,
+    "total_prompt_count": 1,
+    "change_log": [{"when": "2024-01-15T10:00:00Z", "note": "New prototype started - ..."}],
+    "files": []
+  },
+  "content": {
+    "workflow": "...",
+    "requirements": ["..."],
+    "layout": "...",
+    "raw": {...}
+  },
+  "files": []
+}
+```
+
+### Merge with Existing Session
+
+```bash
+curl -X POST http://localhost:5001/api/prototype/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Add a grocery list export feature",
+    "mode": "workflow",
+    "sessionId": "550e8400-e29b-41d4-a716-446655440000"
+  }'
+```
+
+### Generate Code
+
+```bash
+curl -X POST http://localhost:5001/api/prototype/code \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+    "lastPrompt": "Generate React code for the meal planner"
+  }'
+```
+
+### Get Session State
+
+```bash
+curl http://localhost:5001/api/prototype/session/550e8400-e29b-41d4-a716-446655440000
+```
+
+### Clear Session
+
+```bash
+curl -X POST http://localhost:5001/api/prototype/clear \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "550e8400-e29b-41d4-a716-446655440000"
+  }'
+```
 
 ## Domain Detection
 

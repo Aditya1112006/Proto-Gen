@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Code, Loader2, Download, Check, FileCode, X } from 'lucide-react'
+import { Code, Loader2, Download, Check, FileCode, X, Copy } from 'lucide-react'
 
 function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) {
   const [isGenerating, setIsGenerating] = useState(false)
@@ -7,6 +7,7 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
   const [showModal, setShowModal] = useState(false)
   const [generatedFiles, setGeneratedFiles] = useState([])
   const [copiedFile, setCopiedFile] = useState(null)
+  const [copiedAll, setCopiedAll] = useState(false)
 
   const handleClick = async () => {
     if (isGenerating || disabled || !hasPrototype) return
@@ -14,18 +15,22 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
     setIsGenerating(true)
     try {
       const result = await onGenerate()
-      setGenerated(true)
 
-      // Store files from the result
-      if (result?.data?.files && result.data.files.length > 0) {
-        setGeneratedFiles(result.data.files)
-        setShowModal(true)
-      } else if (files && files.length > 0) {
-        setGeneratedFiles(files)
-        setShowModal(true)
+      if (result?.success) {
+        setGenerated(true)
+
+        // Store files from the result
+        const filesFromResult = result.data?.files || []
+        if (filesFromResult.length > 0) {
+          setGeneratedFiles(filesFromResult)
+          setShowModal(true)
+        } else if (files && files.length > 0) {
+          setGeneratedFiles(files)
+          setShowModal(true)
+        }
+
+        setTimeout(() => setGenerated(false), 3000)
       }
-
-      setTimeout(() => setGenerated(false), 3000)
     } catch (error) {
       console.error('Generation failed:', error)
     } finally {
@@ -57,6 +62,20 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
       setTimeout(() => setCopiedFile(null), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
+    }
+  }
+
+  const handleCopyAll = async () => {
+    try {
+      const allContent = generatedFiles.map(file => (
+        `========== ${file.filename} ==========\n\n${file.content || ''}\n\n`
+      )).join('\n')
+
+      await navigator.clipboard.writeText(allContent)
+      setCopiedAll(true)
+      setTimeout(() => setCopiedAll(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy all:', err)
     }
   }
 
@@ -187,13 +206,26 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
               >
                 Close
               </button>
-              <button
-                onClick={handleDownloadZip}
-                className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
-              >
-                <Download className="w-4 h-4" />
-                Download All
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopyAll}
+                  className={`px-4 py-2 font-medium rounded-lg transition-colors flex items-center gap-2 ${
+                    copiedAll
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                  }`}
+                >
+                  <Copy className="w-4 h-4" />
+                  {copiedAll ? 'Copied All!' : 'Copy All'}
+                </button>
+                <button
+                  onClick={handleDownloadZip}
+                  className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Download All
+                </button>
+              </div>
             </div>
           </div>
         </div>

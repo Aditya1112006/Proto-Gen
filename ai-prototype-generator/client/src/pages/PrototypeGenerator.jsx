@@ -9,6 +9,7 @@ import CodeOutput from '../components/Output/CodeOutput'
 import GenerateCodeButton from '../components/Output/GenerateCodeButton'
 
 function PrototypeGenerator() {
+
   const [mode, setMode] = useState('workflow')
 
   const {
@@ -25,6 +26,7 @@ function PrototypeGenerator() {
   } = usePrototypeContext()
 
   const handleSubmit = async (prompt) => {
+    if (!prompt) return
     await generate(prompt, mode)
   }
 
@@ -39,17 +41,22 @@ function PrototypeGenerator() {
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
+
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Prototype Generator</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">
+            Prototype Generator
+          </h1>
           <p className="text-slate-600">
             Describe your product idea. We'll detect domains, merge related prompts, and generate a prototype.
           </p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left Column - Input & History */}
+
+          {/* Left Column */}
           <div className="lg:col-span-1 space-y-6">
+
             {/* Prompt Input */}
             <PromptInput
               onSubmit={handleSubmit}
@@ -91,10 +98,12 @@ function PrototypeGenerator() {
                 Start New Prototype
               </button>
             )}
+
           </div>
 
-          {/* Right Column - Output */}
+          {/* Right Column */}
           <div className="lg:col-span-2 space-y-6">
+
             {/* Error */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
@@ -111,6 +120,7 @@ function PrototypeGenerator() {
             {/* Empty State */}
             {!currentPrototype && !isLoading && !error && (
               <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-12 text-center">
+
                 <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <svg
                     className="w-10 h-10 text-slate-400"
@@ -126,10 +136,16 @@ function PrototypeGenerator() {
                     />
                   </svg>
                 </div>
-                <h3 className="text-xl font-semibold text-slate-800 mb-2">Ready to Generate</h3>
+
+                <h3 className="text-xl font-semibold text-slate-800 mb-2">
+                  Ready to Generate
+                </h3>
+
                 <p className="text-slate-500 max-w-md mx-auto">
-                  Enter your product idea in the text box on the left. Try: "Build a meal-planning app for busy students"
+                  Enter your product idea in the text box on the left. Try:
+                  "Build a meal-planning app for busy students"
                 </p>
+
               </div>
             )}
 
@@ -141,7 +157,7 @@ function PrototypeGenerator() {
               />
             )}
 
-            {/* Generate Code Button */}
+            {/* Generate Code */}
             {currentPrototype?.content && mode === 'workflow' && (
               <GenerateCodeButton
                 onGenerate={handleGenerateCode}
@@ -158,6 +174,7 @@ function PrototypeGenerator() {
                 content={currentPrototype.content}
               />
             )}
+
           </div>
         </div>
       </div>

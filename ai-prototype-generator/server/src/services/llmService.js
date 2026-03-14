@@ -6,11 +6,14 @@ dotenv.config();
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
 });
 
 export class LLMService {
   constructor() {
-    this.model = 'gpt-4o-mini'; // Using mini for cost efficiency
+    this.model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    this.maxTokens = 2000;
+    this.temperature = 0.2;
   }
 
   /**
@@ -18,6 +21,7 @@ export class LLMService {
    * @param {string} prompt - The user prompt
    * @param {string} mode - 'workflow' or 'workflow+code'
    * @param {object} sessionState - Current session state/context
+   * @returns {object} { metadata, content, files } or { error: true, message: "..." }
    */
   async generate(prompt, mode = 'workflow', sessionState = null) {
     const messages = [
@@ -29,29 +33,66 @@ export class LLMService {
       const completion = await openai.chat.completions.create({
         model: this.model,
         messages,
-        temperature: 0.2,
-        max_tokens: 2000,
+        temperature: this.temperature,
+        max_tokens: this.maxTokens,
         response_format: { type: 'json_object' }
       });
 
       const responseContent = completion.choices[0].message.content;
-      const parsed = formatResponse(responseContent);
+      const parsed = this.parseResponse(responseContent);
+
+      // Extract files from response if present
+      const files = parsed.metadata?.files || parsed.files || [];
 
       return {
-        success: true,
-        data: parsed,
-        tokens: completion.usage
+        metadata: {
+          title: parsed.metadata?.title || 'Untitled Prototype',
+          domain: parsed.metadata?.domain || 'general',
+          merged_prompt_count: parsed.metadata?.merged_prompt_count || 1,
+          total_prompt_count: parsed.metadata?.total_prompt_count || 1,
+          change_log: parsed.metadata?.change_log || [],
+          files: files
+        },
+        content: {
+          workflow: parsed.content?.workflow || parsed.content?.summary || '',
+          requirements: parsed.content?.requirements?.functional || parsed.content?.requirements || [],
+          layout: parsed.content?.layout_plan || parsed.content?.layout || '',
+          raw: parsed.content || {}
+        },
+        files: files
       };
     } catch (error) {
       console.error('LLM Error:', error);
       return {
-        success: false,
-        data: {
-          metadata: { title: 'Error', domain: 'error' },
-          content: { workflow: '', requirements: [], layout: '', raw: { error: error.message } },
-          message: `Generation failed: ${error.message}`
-        },
-        error: error.message
+        error: true,
+        message: `Generation failed: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Parse LLM response, handling JSON extraction from markdown
+   */
+  parseResponse(llmResponse) {
+    try {
+      // Try to parse as JSON directly
+      return JSON.parse(llmResponse);
+    } catch (e) {
+      // Try to extract JSON from triple-backtick fenced code blocks
+      const jsonMatch = llmResponse.match(/```(?:json)?\n?([\s\S]*?)```/);
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[1].trim());
+        } catch (parseError) {
+          console.error('Failed to parse JSON from code block:', parseError);
+        }
+      }
+
+      // Fallback: return raw content wrapped
+      return {
+        metadata: { title: 'Raw Response', domain: 'general' },
+        content: { raw: llmResponse },
+        files: []
       };
     }
   }

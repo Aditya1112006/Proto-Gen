@@ -1,169 +1,204 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { generatePrototype, generateCode, clearSession } from '../services/api'
+import { createContext, useContext, useState } from "react"
 
-const PrototypeContext = createContext(null)
+const PrototypeContext = createContext()
 
-const STORAGE_KEY = 'ai_prototype_session_id'
+export const usePrototypeContext = () => {
+  return useContext(PrototypeContext)
+}
 
-export function PrototypeProvider({ children }) {
-  // Load sessionId from localStorage on mount
-  const [sessionId, setSessionId] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(STORAGE_KEY) || null
-    }
-    return null
-  })
+export const PrototypeProvider = ({ children }) => {
+
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5001"
+
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
-
-  // Prototype state
   const [currentPrototype, setCurrentPrototype] = useState(null)
+
   const [promptHistory, setPromptHistory] = useState([])
+
   const [counters, setCounters] = useState({
     totalPrompts: 0,
     mergedPrompts: 0
   })
+
   const [domainInfo, setDomainInfo] = useState({
     current: null,
-    changed: false,
-    oldDomain: null
+    oldDomain: null,
+    changed: false
   })
+
   const [changeLog, setChangeLog] = useState([])
 
-  // Persist sessionId to localStorage whenever it changes
-  useEffect(() => {
-    if (sessionId) {
-      localStorage.setItem(STORAGE_KEY, sessionId)
-    } else {
-      localStorage.removeItem(STORAGE_KEY)
-    }
-  }, [sessionId])
+  const [sessionId, setSessionId] = useState(null)
 
-  // Generate prototype from prompt
-  const generate = useCallback(async (prompt, mode = 'workflow') => {
-    setIsLoading(true)
-    setError(null)
+  // GENERATE WORKFLOW
+  const generate = async (prompt, mode) => {
+
+    if (!prompt) return
 
     try {
-      const result = await generatePrototype(prompt, mode, sessionId)
 
-      // Update session
-      if (result.sessionId) {
-        setSessionId(result.sessionId)
+      setIsLoading(true)
+      setError(null)
+
+      const response = await fetch(`${API_URL}/api/prototype/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          prompt,
+          mode,
+          sessionId
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error?.message || "Generation failed")
       }
 
-      // Update prototype
+      // Save session
+      setSessionId(data.sessionId)
+
+      // Set prototype
       setCurrentPrototype({
-        metadata: result.metadata,
-        content: result.content
+        content: data.content,
+        metadata: data.metadata
       })
 
-      // Update prompt history
-      setPromptHistory(result.promptHistory || [])
+      // Prompt history
+      setPromptHistory(prev => [...prev, prompt])
 
-      // Update counters
+      // Counters
       setCounters({
-        totalPrompts: result.metadata?.total_prompt_count || 0,
-        mergedPrompts: result.metadata?.merged_prompt_count || 0
+        totalPrompts: data.metadata?.total_prompt_count || 0,
+        mergedPrompts: data.metadata?.merged_prompt_count || 0
       })
 
-      // Update domain info
-      setDomainInfo({
-        current: result.domain,
-        changed: result.domainChanged,
-        oldDomain: result.oldDomain
-      })
+      // Domain info
+      if (data.metadata?.domain) {
+        setDomainInfo(prev => ({
+          current: data.metadata.domain,
+          oldDomain: prev.current,
+          changed: data.domainChanged
+        }))
+      }
 
-      // Update change log
-      setChangeLog(result.changeLog || [])
+      // Change log
+      if (data.metadata?.change_log) {
+        setChangeLog(data.metadata.change_log)
+      }
 
-      return { success: true, data: result }
     } catch (err) {
-      setError(err.message || 'Failed to generate prototype')
-      return { success: false, error: err.message }
+
+      console.error("Generate error:", err)
+      setError(err.message || "Something went wrong")
+
     } finally {
       setIsLoading(false)
     }
-  }, [sessionId])
+  }
 
-  // Generate code for current prototype
-  const generateCodeForPrototype = useCallback(async () => {
+  // GENERATE CODE
+  const generateCodeForPrototype = async () => {
+
     if (!sessionId) {
-      setError('No active prototype')
-      return { success: false, error: 'No active prototype' }
+      setError("No active prototype session")
+      return
     }
-
-    setIsLoading(true)
-    setError(null)
 
     try {
-      const result = await generateCode(sessionId)
 
-      // Update prototype with code
-      setCurrentPrototype(prev => ({
-        ...prev,
-        metadata: result.metadata,
-        content: {
-          ...prev?.content,
-          ...result.content
-        }
-      }))
+      setIsLoading(true)
+      setError(null)
 
-      return { success: true, data: result }
+      const response = await fetch(`${API_URL}/api/prototype/code`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error?.message || "Code generation failed")
+      }
+
+      setCurrentPrototype({
+        content: data.content,
+        metadata: data.metadata
+      })
+
     } catch (err) {
-      setError(err.message || 'Failed to generate code')
-      return { success: false, error: err.message }
+
+      console.error("Code generation error:", err)
+      setError(err.message || "Code generation failed")
+
     } finally {
       setIsLoading(false)
     }
-  }, [sessionId])
+  }
 
-  // Clear current prototype
-  const clear = useCallback(async () => {
-    if (sessionId) {
-      await clearSession(sessionId)
+  // CLEAR STATE
+  const clear = async () => {
+
+    try {
+
+      await fetch(`${API_URL}/api/prototype/clear`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId
+        })
+      })
+
+    } catch (err) {
+      console.error("Clear session error:", err)
     }
 
     setSessionId(null)
     setCurrentPrototype(null)
     setPromptHistory([])
-    setCounters({ totalPrompts: 0, mergedPrompts: 0 })
-    setDomainInfo({ current: null, changed: false, oldDomain: null })
+
+    setCounters({
+      totalPrompts: 0,
+      mergedPrompts: 0
+    })
+
+    setDomainInfo({
+      current: null,
+      oldDomain: null,
+      changed: false
+    })
+
     setChangeLog([])
     setError(null)
-  }, [sessionId])
-
-  const value = {
-    // State
-    sessionId,
-    isLoading,
-    error,
-    currentPrototype,
-    promptHistory,
-    counters,
-    domainInfo,
-    changeLog,
-
-    // Actions
-    generate,
-    generateCodeForPrototype,
-    clear,
-
-    // Setters
-    setError
   }
 
   return (
-    <PrototypeContext.Provider value={value}>
+    <PrototypeContext.Provider
+      value={{
+        isLoading,
+        error,
+        currentPrototype,
+        promptHistory,
+        counters,
+        domainInfo,
+        changeLog,
+        generate,
+        generateCodeForPrototype,
+        clear
+      }}
+    >
       {children}
     </PrototypeContext.Provider>
   )
-}
-
-export function usePrototypeContext() {
-  const context = useContext(PrototypeContext)
-  if (!context) {
-    throw new Error('usePrototypeContext must be used within a PrototypeProvider')
-  }
-  return context
 }

@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(cd client:*)",
-      "Bash(cd server:*)"
+      "Bash(cd server:*)",
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(cd:*)",
+      "Bash(node:*)"
     ]
   }
 }

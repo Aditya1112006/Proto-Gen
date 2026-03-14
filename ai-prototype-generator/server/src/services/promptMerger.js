@@ -7,15 +7,39 @@ export class PromptMerger {
   }
 
   /**
+   * Create a new session
+   * @returns {Object} New session object
+   */
+  createSession() {
+    const sessionId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const session = {
+      sessionId,
+      createdAt: new Date().toISOString(),
+      prompts: [],
+      domain: null,
+      title: null,
+      mergedPromptCount: 0,
+      totalPromptCount: 0,
+      canonicalRequirements: [],
+      changeLog: []
+    };
+    this.state.set(sessionId, session);
+    return session;
+  }
+
+  /**
    * Get or initialize session state
    */
   getSession(sessionId) {
     if (!this.state.has(sessionId)) {
       this.state.set(sessionId, {
+        sessionId,
+        createdAt: new Date().toISOString(),
+        prompts: [],
         domain: null,
         title: null,
-        prompts: [],
         mergedRequirements: [],
+        canonicalRequirements: [],
         changeLog: [],
         totalPromptCount: 0,
         mergedPromptCount: 0,
@@ -31,9 +55,10 @@ export class PromptMerger {
   addPrompt(sessionId, prompt, domainInfo) {
     const session = this.getSession(sessionId);
 
+    const timestamp = new Date().toISOString();
     session.prompts.push({
       text: prompt,
-      timestamp: new Date().toISOString(),
+      timestamp,
       domain: domainInfo.domain
     });
 
@@ -45,10 +70,16 @@ export class PromptMerger {
       session.mergedPromptCount = 1;
       session.mergedRequirements = [];
       session.canonicalRequirements = [];
-      session.changeLog = [`Prompt ${session.totalPromptCount}: New prototype started - ${this.summarizeChange(prompt)}`];
+      session.changeLog = [{
+        when: timestamp,
+        note: `New prototype started - ${this.summarizeChange(prompt)}`
+      }];
     } else {
       session.mergedPromptCount++;
-      session.changeLog.push(`Prompt ${session.totalPromptCount}: ${this.summarizeChange(prompt)}`);
+      session.changeLog.push({
+        when: timestamp,
+        note: this.summarizeChange(prompt)
+      });
     }
 
     session.domain = domainInfo.domain;
@@ -67,51 +98,54 @@ export class PromptMerger {
 
   /**
    * Merge requirements from LLM response
+   * @param {string} sessionId
+   * @param {Array} newRequirementsArray - Array of requirement strings
+   * @returns {Array} Merged requirements array
    */
-  mergeRequirements(sessionId, newRequirements) {
+  mergeRequirements(sessionId, newRequirementsArray) {
     const session = this.getSession(sessionId);
 
-    if (!session.mergedRequirements.length) {
-      session.mergedRequirements = newRequirements;
-      return session.mergedRequirements;
+    if (!Array.isArray(newRequirementsArray)) {
+      return session.canonicalRequirements;
     }
 
-    // Merge functional requirements
-    if (newRequirements.functional) {
-      const existing = new Set(session.mergedRequirements.functional || []);
-      newRequirements.functional.forEach(req => {
-        // Check for conflicts
-        const conflict = this.findConflict(req, [...existing]);
-        if (conflict) {
-          // Prefer newer, note conflict
-          session.changeLog.push(`Updated: "${conflict}" → "${req}"`);
-          existing.delete(conflict);
-          existing.add(req);
-        } else if (!this.isDuplicate(req, [...existing])) {
-          existing.add(req);
-        }
+    const timestamp = new Date().toISOString();
+
+    // Deduplicate and merge, keeping max 8 items
+    for (const newReq of newRequirementsArray) {
+      // Check for conflicts
+      const conflict = this.findConflict(newReq, session.canonicalRequirements);
+      if (conflict) {
+        // Prefer newer, note conflict in changeLog
+        session.changeLog.push({
+          when: timestamp,
+          note: `Updated requirement: "${conflict}" → "${newReq}"`
+        });
+        // Remove conflict and add new
+        session.canonicalRequirements = session.canonicalRequirements.filter(r => r !== conflict);
+        session.canonicalRequirements.push(newReq);
+      } else if (!this.isDuplicate(newReq, session.canonicalRequirements)) {
+        session.canonicalRequirements.push(newReq);
+      }
+    }
+
+    // Limit to 8 items
+    if (session.canonicalRequirements.length > 8) {
+      const removed = session.canonicalRequirements.length - 8;
+      session.canonicalRequirements = session.canonicalRequirements.slice(-8);
+      session.changeLog.push({
+        when: timestamp,
+        note: `Limited to 8 requirements (removed ${removed} older items)`
       });
-      session.mergedRequirements.functional = [...existing];
     }
 
-    // Merge non-functional requirements
-    if (newRequirements.non_functional) {
-      const existing = new Set(session.mergedRequirements.non_functional || []);
-      newRequirements.non_functional.forEach(req => {
-        if (!this.isDuplicate(req, [...existing])) {
-          existing.add(req);
-        }
-      });
-      session.mergedRequirements.non_functional = [...existing];
-    }
+    // Also update mergedRequirements for backwards compatibility
+    session.mergedRequirements = {
+      functional: session.canonicalRequirements,
+      non_functional: []
+    };
 
-    // Limit to 8 functional requirements
-    if (session.mergedRequirements.functional?.length > 8) {
-      session.mergedRequirements.functional = session.mergedRequirements.functional.slice(0, 8);
-      session.changeLog.push('Note: Limited to top 8 functional requirements');
-    }
-
-    return session.mergedRequirements;
+    return session.canonicalRequirements;
   }
 
   /**
@@ -172,6 +206,7 @@ export class PromptMerger {
       domain: session.domain,
       title: session.title,
       requirements: session.mergedRequirements,
+      canonicalRequirements: session.canonicalRequirements,
       total_prompt_count: session.totalPromptCount,
       merged_prompt_count: session.mergedPromptCount,
       change_log: session.changeLog
@@ -189,7 +224,11 @@ export class PromptMerger {
     }
 
     if (output.content?.requirements) {
-      this.mergeRequirements(sessionId, output.content.requirements);
+      // Handle both array and object formats
+      const reqs = Array.isArray(output.content.requirements)
+        ? output.content.requirements
+        : output.content.requirements.functional || [];
+      this.mergeRequirements(sessionId, reqs);
     }
 
     session.lastOutput = output;

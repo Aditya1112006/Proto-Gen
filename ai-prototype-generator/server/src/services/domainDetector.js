@@ -14,6 +14,7 @@ export class DomainDetector {
       'travel': ['travel', 'trip', 'booking', 'hotel', 'flight', 'vacation', 'destination', 'tour'],
       'real_estate': ['property', 'real estate', 'apartment', 'house', 'rent', 'lease', 'mortgage', 'agent']
     };
+    this.threshold = 0.3; // Similarity threshold for domain matching
   }
 
   /**
@@ -42,7 +43,7 @@ export class DomainDetector {
     const union = [...new Set([...set1, ...set2])];
 
     // Jaccard similarity
-    const jaccard = intersection.length / union.length;
+    const jaccard = union.length === 0 ? 0 : intersection.length / union.length;
 
     // Also check for semantic overlap with domain keywords
     let domainOverlap = 0;
@@ -102,10 +103,9 @@ export class DomainDetector {
 
   /**
    * Main detection method
-   * Returns { isSameDomain, domain, score }
+   * Returns { isSameDomain: boolean, domain: string, score: number }
    */
-  detect(prompt, session) {
-    const currentDomain = session?.domain || null;
+  detect(prompt, currentDomain) {
     const promptKeywords = this.extractKeywords(prompt);
     const inferredDomain = this.inferDomain(prompt);
 
@@ -121,8 +121,8 @@ export class DomainDetector {
     const currentKeywords = this.extractKeywords(currentDomain);
     const similarity = this.calculateSimilarity(promptKeywords, currentKeywords);
 
-    // Threshold: 0.3+ similarity = same domain (lowered for more lenient matching)
-    if (similarity >= 0.3) {
+    // Threshold: 0.3+ similarity = same domain
+    if (similarity >= this.threshold) {
       return {
         isSameDomain: true,
         domain: currentDomain,
@@ -142,11 +142,13 @@ export class DomainDetector {
 
   /**
    * Fallback LLM-based domain detection
+   * Returns highest confidence result
    */
   async detectWithLLM(prompt, openaiClient) {
     try {
+      const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
       const completion = await openaiClient.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model,
         messages: [
           {
             role: 'system',

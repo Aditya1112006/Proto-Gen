@@ -1,42 +1,36 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Send, Loader2, Code, FileText, AlertCircle } from 'lucide-react'
 
-function PromptInput({ onSubmit, isLoading, mode, setMode, promptHistory = [], counters = {}, domainChanged = false, oldDomain = null }) {
+function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domainInfo = {} }) {
   const [prompt, setPrompt] = useState('')
-  const [showDomainAlert, setShowDomainAlert] = useState(domainChanged)
+  const [showDomainAlert, setShowDomainAlert] = useState(false)
 
   // Show domain alert when domain changes
-  useState(() => {
-    setShowDomainAlert(domainChanged)
-    if (domainChanged) {
-      const timer = setTimeout(() => setShowDomainAlert(false), 5000)
+  useEffect(() => {
+    if (domainInfo.changed) {
+      setShowDomainAlert(true)
+      const timer = setTimeout(() => setShowDomainAlert(false), 5001)
       return () => clearTimeout(timer)
     }
-  }, [domainChanged])
+  }, [domainInfo.changed, domainInfo.current])
 
   const handleSubmit = (e) => {
     e.preventDefault()
     if (prompt.trim() && !isLoading) {
-      onSubmit(prompt.trim())
+      onSubmit(prompt.trim(), mode)
       setPrompt('')
     }
   }
 
-  // Get latest 5 prompts for display
-  const latestPrompts = promptHistory.slice(-5).reverse()
-
   return (
     <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
       {/* Domain Change Alert */}
-      {showDomainAlert && (
+      {showDomainAlert && domainInfo.changed && (
         <div className="bg-amber-50 border-b border-amber-200 p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-sm text-amber-800 font-medium">
-              Domain Changed{oldDomain ? ` from "${oldDomain}"` : ''}
-            </p>
-            <p className="text-xs text-amber-600 mt-0.5">
-              Previous prototype cleared. Starting new prototype.
+              Domain changed from "{domainInfo.oldDomain || 'previous'}" to "{domainInfo.current}". Previous prototype cleared.
             </p>
           </div>
           <button
@@ -122,26 +116,6 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, promptHistory = [], c
           Tip: Add more details to refine your prototype. Same domain prompts will be merged automatically.
         </p>
       </form>
-
-      {/* Prompt History */}
-      {latestPrompts.length > 0 && (
-        <div className="px-4 pb-4">
-          <div className="border-t border-slate-100 pt-3">
-            <p className="text-xs font-medium text-slate-500 mb-2">Recent Prompts:</p>
-            <div className="space-y-2">
-              {latestPrompts.map((item, index) => (
-                <div
-                  key={index}
-                  className="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2 truncate"
-                  title={item.text}
-                >
-                  {item.text}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

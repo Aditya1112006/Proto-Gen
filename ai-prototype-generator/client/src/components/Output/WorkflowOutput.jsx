@@ -1,9 +1,60 @@
-import { Users, ListTodo, CheckCircle2, ClipboardList, FileText } from 'lucide-react'
+import { Users, ListTodo, CheckCircle2, ClipboardList, FileText, Layout } from 'lucide-react'
 
 function WorkflowOutput({ content, metadata }) {
   if (!content) return null
 
-  const { summary, roles, user_flow, requirements, acceptance_criteria, layout_plan } = content
+  const { summary, roles, user_flow, requirements, acceptance_criteria, layout } = content
+
+  // Recursive function to render layout tree
+  const renderLayoutTree = (obj, level = 0) => {
+    if (!obj || typeof obj !== 'object') return null
+
+    return (
+      <ul className={`${level > 0 ? 'ml-4 border-l-2 border-slate-200 pl-3' : ''}`}>
+        {Object.entries(obj).map(([key, value], index) => {
+          const isLast = index === Object.entries(obj).length - 1
+          const hasChildren = value && (typeof value === 'object' && !Array.isArray(value) ? Object.keys(value).length > 0 : Array.isArray(value) && value.length > 0)
+
+          return (
+            <li key={key} className="relative">
+              <div className="flex items-start py-1">
+                {/* Tree connector lines */}
+                {level > 0 && (
+                  <span className="absolute -left-3 top-3 w-3 h-px bg-slate-300"></span>
+                )}
+
+                {/* Node content */}
+                <div className="flex items-center">
+                  {hasChildren ? (
+                    <span className="w-2 h-2 bg-primary-500 rounded-full mr-2 flex-shrink-0"></span>
+                  ) : (
+                    <span className="w-2 h-2 bg-slate-400 rounded-full mr-2 flex-shrink-0"></span>
+                  )}
+                  <span className={`font-medium ${hasChildren ? 'text-slate-800' : 'text-slate-600'}`}>
+                    {key}
+                  </span>
+                </div>
+              </div>
+
+              {/* Render children */}
+              {Array.isArray(value) ? (
+                <ul className={`ml-4 border-l-2 border-slate-200 pl-3 ${isLast ? '' : ''}`}>
+                  {value.map((item, idx) => (
+                    <li key={idx} className="relative py-1">
+                      <span className="absolute -left-3 top-3 w-3 h-px bg-slate-300"></span>
+                      <span className="text-slate-600 text-sm">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : typeof value === 'object' && value !== null ? (
+                renderLayoutTree(value, level + 1)
+              ) : null}
+            </li>
+          )
+        })}
+      </ul>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -114,6 +165,19 @@ function WorkflowOutput({ content, metadata }) {
         </div>
       )}
 
+      {/* Layout - Tree Structure */}
+      {layout && typeof layout === 'object' && Object.keys(layout).length > 0 && (
+        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Layout className="w-5 h-5 text-primary-500" />
+            <h3 className="text-lg font-semibold text-slate-800">Layout Structure</h3>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-4 overflow-x-auto">
+            {renderLayoutTree(layout)}
+          </div>
+        </div>
+      )}
+
       {/* Acceptance Criteria */}
       {acceptance_criteria && acceptance_criteria.length > 0 && (
         <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-6">
@@ -129,19 +193,6 @@ function WorkflowOutput({ content, metadata }) {
               </li>
             ))}
           </ul>
-        </div>
-      )}
-
-      {/* Layout Plan */}
-      {layout_plan && (
-        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <FileText className="w-5 h-5 text-primary-500" />
-            <h3 className="text-lg font-semibold text-slate-800">Layout Plan</h3>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4">
-            <p className="text-slate-700 whitespace-pre-wrap">{layout_plan}</p>
-          </div>
         </div>
       )}
     </div>

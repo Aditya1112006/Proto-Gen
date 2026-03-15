@@ -55,24 +55,66 @@ router.post('/generate', async (req, res, next) => {
     // Update session with output
     promptMerger.updateWithOutput(session, result);
 
-    // Build response per API spec
+    // Build response per API spec — pass through the already-normalized content from llmService
+    const content = result.content || {};
+
+    // Ensure workflow is always an array (handle both array and string cases)
+    let workflow = content.workflow;
+    if (typeof workflow === 'string') {
+      workflow = workflow ? [workflow] : [];
+    } else if (!Array.isArray(workflow)) {
+      workflow = [];
+    }
+
+    // Ensure user_flow is always an array
+    let userFlow = content.user_flow;
+    if (typeof userFlow === 'string') {
+      userFlow = userFlow ? [userFlow] : [];
+    } else if (!Array.isArray(userFlow)) {
+      userFlow = workflow; // fallback to workflow
+    }
+
+    // Normalize requirements to object format
+    let requirements = content.requirements;
+    if (Array.isArray(requirements)) {
+      requirements = { functional: requirements, non_functional: [] };
+    } else if (typeof requirements === 'string') {
+      requirements = { functional: [requirements], non_functional: [] };
+    } else if (!requirements || typeof requirements !== 'object') {
+      requirements = { functional: [], non_functional: [] };
+    }
+    // Ensure functional and non_functional are arrays
+    if (!Array.isArray(requirements.functional)) {
+      requirements.functional = [];
+    }
+    if (!Array.isArray(requirements.non_functional)) {
+      requirements.non_functional = [];
+    }
+
     const response = {
       success: true,
       sessionId: session,
       domainChanged: domainInfo.isSameDomain === false,
       metadata: {
-        title: result.metadata?.title || sessionData.title || 'Untitled Prototype',
-        domain: domainInfo.domain || result.metadata?.domain || 'general',
+        title: result.metadata?.title || content.title || sessionData.title || 'Untitled Prototype',
+        domain: domainInfo.domain || result.metadata?.domain || content.domain || 'general',
         merged_prompt_count: sessionData.mergedPromptCount,
         total_prompt_count: sessionData.totalPromptCount,
         change_log: sessionData.changeLog,
         files: result.metadata?.files || result.files || []
       },
       content: {
-        workflow: result.content?.workflow || '',
-        requirements: result.content?.requirements || [],
-        layout: result.content?.layout || '',
-        raw: result.content?.raw || {}
+        title: content.title || result.metadata?.title || 'Untitled Prototype',
+        domain: content.domain || result.metadata?.domain || 'general',
+        summary: content.summary || `A ${domainInfo.domain || 'web'} application prototype.`,
+        roles: Array.isArray(content.roles) ? content.roles : ['User', 'Admin'],
+        user_flow: userFlow.length > 0 ? userFlow : workflow,
+        workflow: workflow,
+        requirements: requirements,
+        layout_plan: content.layout_plan || content.layout || 'Standard web application layout',
+        layout: content.layout || content.layout_plan || 'Standard web application layout',
+        acceptance_criteria: Array.isArray(content.acceptance_criteria) ? content.acceptance_criteria : [],
+        raw: content.raw || content
       },
       files: result.files || result.metadata?.files || []
     };
@@ -194,24 +236,67 @@ router.post('/code', async (req, res, next) => {
     promptMerger.updateWithOutput(sessionId, result);
     const sessionData = promptMerger.getSession(sessionId);
 
+    // Build response — pass through already-normalized content from llmService
+    const content = result.content || {};
+
+    // Ensure workflow is always an array (handle both array and string cases)
+    let workflow = content.workflow;
+    if (typeof workflow === 'string') {
+      workflow = workflow ? [workflow] : [];
+    } else if (!Array.isArray(workflow)) {
+      workflow = [];
+    }
+
+    // Ensure user_flow is always an array
+    let userFlow = content.user_flow;
+    if (typeof userFlow === 'string') {
+      userFlow = userFlow ? [userFlow] : [];
+    } else if (!Array.isArray(userFlow)) {
+      userFlow = workflow; // fallback to workflow
+    }
+
+    // Normalize requirements to object format
+    let requirements = content.requirements;
+    if (Array.isArray(requirements)) {
+      requirements = { functional: requirements, non_functional: [] };
+    } else if (typeof requirements === 'string') {
+      requirements = { functional: [requirements], non_functional: [] };
+    } else if (!requirements || typeof requirements !== 'object') {
+      requirements = { functional: [], non_functional: [] };
+    }
+    // Ensure functional and non_functional are arrays
+    if (!Array.isArray(requirements.functional)) {
+      requirements.functional = [];
+    }
+    if (!Array.isArray(requirements.non_functional)) {
+      requirements.non_functional = [];
+    }
+
     // Return standardized response
     res.json({
       success: true,
       sessionId,
       domainChanged: false,
       metadata: {
-        title: result.metadata?.title || sessionData.title || 'Untitled Prototype',
-        domain: sessionData.domain || 'general',
+        title: result.metadata?.title || content.title || sessionData.title || 'Untitled Prototype',
+        domain: sessionData.domain || result.metadata?.domain || content.domain || 'general',
         merged_prompt_count: sessionData.mergedPromptCount,
         total_prompt_count: sessionData.totalPromptCount,
         change_log: sessionData.changeLog,
         files: result.metadata?.files || result.files || []
       },
       content: {
-        workflow: result.content?.workflow || '',
-        requirements: result.content?.requirements || [],
-        layout: result.content?.layout || '',
-        raw: result.content?.raw || {}
+        title: content.title || result.metadata?.title || 'Untitled Prototype',
+        domain: content.domain || result.metadata?.domain || 'general',
+        summary: content.summary || `A ${sessionData.domain || 'web'} application prototype.`,
+        roles: Array.isArray(content.roles) ? content.roles : ['User', 'Admin'],
+        user_flow: userFlow.length > 0 ? userFlow : workflow,
+        workflow: workflow,
+        requirements: requirements,
+        layout_plan: content.layout_plan || content.layout || 'Standard web application layout',
+        layout: content.layout || content.layout_plan || 'Standard web application layout',
+        acceptance_criteria: Array.isArray(content.acceptance_criteria) ? content.acceptance_criteria : [],
+        raw: content.raw || content
       },
       files: result.files || result.metadata?.files || []
     });

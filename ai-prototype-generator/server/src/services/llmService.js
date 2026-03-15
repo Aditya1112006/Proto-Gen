@@ -41,8 +41,8 @@ export class LLMService {
       const responseContent = completion.choices[0].message.content;
       const parsed = this.parseResponse(responseContent);
 
-      // Extract files from response if present
-      const files = parsed.metadata?.files || parsed.files || [];
+      // Extract files from response if present (check both locations)
+      const files = parsed.files || parsed.metadata?.files || [];
 
       // Ensure content structure with fallbacks
       const content = parsed.content || {};
@@ -314,6 +314,7 @@ export class LLMService {
         ],
         raw: rawContent
       },
+      files: [],
       message: 'Prototype generated with default structure.'
     };
   }

@@ -27,6 +27,8 @@ export const PrototypeProvider = ({ children }) => {
     changed: false
   })
 
+  const [showDomainChangeModal, setShowDomainChangeModal] = useState(false)
+
   const [changeLog, setChangeLog] = useState([])
 
   const [sessionId, setSessionId] = useState(null)
@@ -81,7 +83,10 @@ export const PrototypeProvider = ({ children }) => {
       // Set prototype
       setCurrentPrototype({
         content: data.content,
-        metadata: data.metadata
+        metadata: {
+          ...data.metadata,
+          files: data.files || data.metadata?.files || []
+        }
       })
 
       // Prompt history
@@ -95,11 +100,16 @@ export const PrototypeProvider = ({ children }) => {
 
       // Domain info
       if (data.metadata?.domain) {
+        const isDomainChanged = data.domainChanged
         setDomainInfo(prev => ({
           current: data.metadata.domain,
           oldDomain: prev.current,
-          changed: data.domainChanged
+          changed: isDomainChanged
         }))
+        // Show modal if domain changed
+        if (isDomainChanged) {
+          setShowDomainChangeModal(true)
+        }
       }
 
       // Change log
@@ -152,8 +162,13 @@ export const PrototypeProvider = ({ children }) => {
 
       setCurrentPrototype({
         content: data.content,
-        metadata: data.metadata
+        metadata: {
+          ...data.metadata,
+          files: data.files || data.metadata?.files || []
+        }
       })
+
+      return { success: true, data }
 
     } catch (err) {
 
@@ -199,9 +214,21 @@ export const PrototypeProvider = ({ children }) => {
       changed: false
     })
 
+    setShowDomainChangeModal(false)
+
     setChangeLog([])
     setError(null)
     setGenerationStage(null)
+  }
+
+  // Acknowledge domain change (close modal)
+  const acknowledgeDomainChange = () => {
+    setShowDomainChangeModal(false)
+    // Keep domain info but mark as acknowledged
+    setDomainInfo(prev => ({
+      ...prev,
+      changed: false
+    }))
   }
 
   return (
@@ -215,9 +242,11 @@ export const PrototypeProvider = ({ children }) => {
         domainInfo,
         changeLog,
         generationStage,
+        showDomainChangeModal,
         generate,
         generateCodeForPrototype,
-        clear
+        clear,
+        acknowledgeDomainChange
       }}
     >
       {children}

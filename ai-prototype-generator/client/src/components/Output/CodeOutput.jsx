@@ -40,7 +40,7 @@ function CodeOutput({ files, content }) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = currentFile.name
+    a.download = currentFile.name || currentFile.filename || 'file.txt'
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -53,7 +53,7 @@ function CodeOutput({ files, content }) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = file.name
+      a.download = file.name || file.filename || 'file.txt'
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -95,7 +95,7 @@ function CodeOutput({ files, content }) {
               }`}
             >
               <FileCode className="w-4 h-4" />
-              {file.name}
+              {file.name || file.filename || `File ${index + 1}`}
             </button>
           ))}
         </div>

@@ -8,6 +8,7 @@ import WorkflowOutput from '../components/Output/WorkflowOutput'
 import CodeOutput from '../components/Output/CodeOutput'
 import GenerateCodeButton from '../components/Output/GenerateCodeButton'
 import GenerationStatus from '../components/GenerationStatus'
+import DomainChangeModal from '../components/Modals/DomainChangeModal'
 
 function PrototypeGenerator() {
 
@@ -22,9 +23,11 @@ function PrototypeGenerator() {
     domainInfo,
     changeLog,
     generationStage,
+    showDomainChangeModal,
     generate,
     generateCodeForPrototype,
-    clear
+    clear,
+    acknowledgeDomainChange
   } = usePrototypeContext()
 
   const handleSubmit = async (prompt) => {
@@ -183,6 +186,18 @@ function PrototypeGenerator() {
           </div>
         </div>
       </div>
+
+      {/* Domain Change Modal */}
+      <DomainChangeModal
+        isOpen={showDomainChangeModal}
+        onClose={acknowledgeDomainChange}
+        onStartNew={() => {
+          acknowledgeDomainChange()
+          clear()
+        }}
+        oldDomain={domainInfo.oldDomain}
+        newDomain={domainInfo.current}
+      />
     </div>
   )
 }

@@ -19,13 +19,21 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
       if (result?.success) {
         setGenerated(true)
 
-        // Store files from the result
-        const filesFromResult = result.data?.files || []
+        // Store files from the result - normalize file objects
+        const filesFromResult = (result.data?.files || []).map(f => ({
+          filename: f.filename || f.name || 'unnamed.txt',
+          language: f.language || 'text',
+          content: f.content || ''
+        }))
         if (filesFromResult.length > 0) {
           setGeneratedFiles(filesFromResult)
           setShowModal(true)
         } else if (files && files.length > 0) {
-          setGeneratedFiles(files)
+          setGeneratedFiles(files.map(f => ({
+            filename: f.filename || f.name || 'unnamed.txt',
+            language: f.language || 'text',
+            content: f.content || ''
+          })))
           setShowModal(true)
         }
 

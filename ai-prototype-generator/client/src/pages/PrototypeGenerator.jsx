@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { AlertCircle, RefreshCw, LayoutTemplate } from 'lucide-react'
 import { usePrototypeContext } from '../context/PrototypeContext'
 import PromptInput from '../components/PromptInput/PromptInput'
 import HistoryList from '../components/History/HistoryList'
@@ -13,6 +14,7 @@ import DomainChangeModal from '../components/Modals/DomainChangeModal'
 function PrototypeGenerator() {
 
   const [mode, setMode] = useState('workflow')
+  const navigate = useNavigate()
 
   const {
     isLoading,
@@ -162,8 +164,12 @@ function PrototypeGenerator() {
               <WorkflowOutput
                 content={currentPrototype.content}
                 metadata={currentPrototype.metadata}
+                features={currentPrototype.features || []}
+                pipelineSteps={currentPrototype.pipelineSteps || []}
               />
             )}
+
+
 
             {/* Generate Code */}
             {currentPrototype?.content && mode === 'workflow' && (

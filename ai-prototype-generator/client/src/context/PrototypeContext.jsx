@@ -1,4 +1,5 @@
 import { createContext, useContext, useState } from "react"
+import sampleLayout from '../data/sampleLayout.json'
 
 const PrototypeContext = createContext()
 
@@ -50,11 +51,11 @@ export const PrototypeProvider = ({ children }) => {
 
       // Stage 1: Detecting domain
       setGenerationStage("detecting")
-      await wait(400)
+      await wait(300)
 
-      // Stage 2: Merging prompts
-      setGenerationStage("merging")
-      await wait(400)
+      // Stage 2: Extracting features
+      setGenerationStage("extracting")
+      await wait(300)
 
       // Stage 3: Generating
       setGenerationStage("generating")
@@ -74,23 +75,37 @@ export const PrototypeProvider = ({ children }) => {
       const data = await response.json()
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error?.message || "Generation failed")
+        const errMsg = typeof data.error === 'string' ? data.error : data.error?.message;
+        throw new Error(errMsg || "Generation failed")
       }
+
+      // Stage 4: Validating
+      setGenerationStage("validating")
+      await wait(200)
 
       // Save session
       setSessionId(data.sessionId)
 
-      // Set prototype
+      // Set prototype with pipeline data
       setCurrentPrototype({
         content: data.content,
         metadata: {
           ...data.metadata,
           files: data.files || data.metadata?.files || []
-        }
+        },
+        features: data.features || [],
+        pipelineSteps: data.pipelineSteps || []
       })
 
-      // Prompt history
-      setPromptHistory(prev => [...prev, prompt])
+      // Prompt history (save as object for HistoryList)
+      setPromptHistory(prev => [
+        ...prev, 
+        { 
+          text: prompt, 
+          timestamp: new Date().toISOString(), 
+          domain: data.metadata?.domain || 'general' 
+        }
+      ])
 
       // Counters
       setCounters({
@@ -106,7 +121,6 @@ export const PrototypeProvider = ({ children }) => {
           oldDomain: prev.current,
           changed: isDomainChanged
         }))
-        // Show modal if domain changed
         if (isDomainChanged) {
           setShowDomainChangeModal(true)
         }
@@ -117,7 +131,7 @@ export const PrototypeProvider = ({ children }) => {
         setChangeLog(data.metadata.change_log)
       }
 
-      // Stage 4: Complete
+      // Stage 5: Complete
       setGenerationStage("complete")
 
     } catch (err) {
@@ -165,7 +179,9 @@ export const PrototypeProvider = ({ children }) => {
         metadata: {
           ...data.metadata,
           files: data.files || data.metadata?.files || []
-        }
+        },
+        features: data.features || [],
+        pipelineSteps: data.pipelineSteps || []
       })
 
       return { success: true, data }
@@ -179,6 +195,7 @@ export const PrototypeProvider = ({ children }) => {
       setIsLoading(false)
     }
   }
+
 
   // CLEAR STATE
   const clear = async () => {
@@ -224,11 +241,14 @@ export const PrototypeProvider = ({ children }) => {
   // Acknowledge domain change (close modal)
   const acknowledgeDomainChange = () => {
     setShowDomainChangeModal(false)
-    // Keep domain info but mark as acknowledged
     setDomainInfo(prev => ({
       ...prev,
       changed: false
     }))
+  }
+
+  const getLayout = () => {
+    return currentPrototype?.content?.layout || sampleLayout;
   }
 
   return (
@@ -246,7 +266,8 @@ export const PrototypeProvider = ({ children }) => {
         generate,
         generateCodeForPrototype,
         clear,
-        acknowledgeDomainChange
+        acknowledgeDomainChange,
+        getLayout
       }}
     >
       {children}

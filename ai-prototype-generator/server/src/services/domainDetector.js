@@ -1,4 +1,10 @@
 // Domain detection using keyword extraction and semantic similarity
+import { GoogleGenAI } from '@google/genai';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
 export class DomainDetector {
   constructor() {
     // Common domain keywords for quick matching
@@ -105,66 +111,95 @@ export class DomainDetector {
    * Main detection method
    * Returns { isSameDomain: boolean, domain: string, score: number }
    */
-  detect(prompt, currentDomain) {
-    const promptKeywords = this.extractKeywords(prompt);
-    const inferredDomain = this.inferDomain(prompt);
-
+  async detect(prompt, currentDomain) {
     if (!currentDomain) {
+      const inferred = await this.detectWithLLM(prompt);
       return {
-        isSameDomain: true, // First prompt always "same" (no previous to conflict with)
-        domain: inferredDomain.name,
-        score: inferredDomain.score,
-        message: `New prototype created in domain: ${inferredDomain.name}`
+        isSameDomain: true, // First prompt always "same"
+        domain: inferred.domain,
+        score: inferred.score,
+        message: `New prototype created in domain: ${inferred.domain}`
       };
     }
 
-    const currentKeywords = this.extractKeywords(currentDomain);
-    const similarity = this.calculateSimilarity(promptKeywords, currentKeywords);
+    try {
+      const model = (process.env.GEMINI_MODEL === 'gemini-1.5-flash' || process.env.GEMINI_MODEL === 'gemini-1.5-flash-latest') ? 'gemini-2.5-flash' : (process.env.GEMINI_MODEL || 'gemini-2.5-flash');
+      const systemInstruction = `You are a strict conversational state router for a UI engineering system. 
+The user currently has an active prototype for the domain: "${currentDomain}".
+The user just provided a new prompt. You must determine if they want to ADD/MODIFY the current "${currentDomain}" application, OR if they want to throw it away and build a COMPLETELY NEW, UNRELATED app in a different domain.
 
-    // Threshold: 0.3+ similarity = same domain
-    if (similarity >= this.threshold) {
+Rules:
+1. If the prompt adds features, states, sections, or styles (e.g., "add a dashboard", "make it dark mode", "add a login screen"), respond with "intent": "modify".
+2. If the user explicitly asks for a completely different app (e.g., "now build me a health app instead", "forget that, make a crypto wallet"), respond with "intent": "new".
+3. Return JSON: { "intent": "modify" | "new", "new_domain": "string (only if new)" }`;
+
+      const response = await ai.models.generateContent({
+        model,
+        contents: `Current domain: ${currentDomain}. New prompt: "${prompt}"`,
+        config: {
+          systemInstruction,
+          temperature: 0.1,
+          maxOutputTokens: 150,
+          responseMimeType: "application/json",
+        }
+      });
+
+      const responseText = response.text;
+      const jsonStr = responseText.substring(responseText.indexOf('{'), responseText.lastIndexOf('}') + 1);
+      const result = JSON.parse(jsonStr || responseText);
+      
+      if (result.intent === 'new' && result.new_domain) {
+        return {
+          isSameDomain: false,
+          domain: result.new_domain,
+          oldDomain: currentDomain,
+          score: 0.9,
+          message: `Domain changed from "${currentDomain}" to "${result.new_domain}". Previous prototype cleared.`
+        };
+      }
+
+      // Default to modifying the current session
       return {
         isSameDomain: true,
         domain: currentDomain,
-        score: similarity,
+        score: 0.9,
         message: `Prompt merged into current domain: ${currentDomain}`
       };
-    } else {
+
+    } catch (error) {
+      console.error('LLM intent detection error:', error);
+      // Fallback
       return {
-        isSameDomain: false,
-        domain: inferredDomain.name,
-        oldDomain: currentDomain,
-        score: similarity,
-        message: `Domain changed from "${currentDomain}" to "${inferredDomain.name}". Previous prototype cleared.`
+        isSameDomain: true,
+        domain: currentDomain,
+        score: 0.5,
+        message: `Prompt conservatively merged into current domain: ${currentDomain}`
       };
     }
   }
 
   /**
-   * Fallback LLM-based domain detection
-   * Returns highest confidence result
+   * Fallback LLM-based domain detection (For first prompt)
    */
-  async detectWithLLM(prompt, openaiClient) {
+  async detectWithLLM(prompt) {
     try {
-      const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-      const completion = await openaiClient.chat.completions.create({
+      const model = (process.env.GEMINI_MODEL === 'gemini-1.5-flash' || process.env.GEMINI_MODEL === 'gemini-1.5-flash-latest') ? 'gemini-2.5-flash' : (process.env.GEMINI_MODEL || 'gemini-2.5-flash');
+      const systemInstruction = 'You are a domain classifier. Given a user prompt, classify it into one of these domains: food_delivery, ecommerce, social_media, finance, health_fitness, education, productivity, entertainment, travel, real_estate, or general. Respond with JSON: { "domain": "domain_name", "confidence": 0.0-1.0 }';
+
+      const response = await ai.models.generateContent({
         model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a domain classifier. Given a user prompt, classify it into one of these domains: food_delivery, ecommerce, social_media, finance, health_fitness, education, productivity, entertainment, travel, real_estate, or general. Respond with JSON: { "domain": "domain_name", "confidence": 0.0-1.0 }'
-          },
-          {
-            role: 'user',
-            content: `Classify this prompt: "${prompt}"`
-          }
-        ],
-        temperature: 0.2,
-        max_tokens: 100,
-        response_format: { type: 'json_object' }
+        contents: `Classify this prompt: "${prompt}"`,
+        config: {
+          systemInstruction,
+          temperature: 0.2,
+          maxOutputTokens: 100,
+          responseMimeType: "application/json",
+        }
       });
 
-      const result = JSON.parse(completion.choices[0].message.content);
+      const responseText = response.text;
+      const jsonStr = responseText.substring(responseText.indexOf('{'), responseText.lastIndexOf('}') + 1);
+      const result = JSON.parse(jsonStr || responseText);
       return {
         domain: result.domain || 'general',
         score: result.confidence || 0.5

@@ -1,59 +1,44 @@
 /**
- * Service for merging prompts and managing prototype state
+ * Service for merging prompts and managing prototype state via MongoDB
  */
-export class PromptMerger {
-  constructor() {
-    this.state = new Map(); // sessionId -> prototype data
-  }
+import crypto from 'crypto';
+import Session from '../models/Session.js';
 
+export class PromptMerger {
   /**
    * Create a new session
    * @returns {Object} New session object
    */
-  createSession() {
+  async createSession() {
     const sessionId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const session = {
+    const session = new Session({
       sessionId,
-      createdAt: new Date().toISOString(),
-      prompts: [],
-      domain: null,
-      title: null,
-      mergedPromptCount: 0,
-      totalPromptCount: 0,
-      canonicalRequirements: [],
       changeLog: []
-    };
-    this.state.set(sessionId, session);
-    return session;
+    });
+    await session.save();
+    return session.toObject();
   }
 
   /**
    * Get or initialize session state
    */
-  getSession(sessionId) {
-    if (!this.state.has(sessionId)) {
-      this.state.set(sessionId, {
+  async getSession(sessionId) {
+    let session = await Session.findOne({ sessionId });
+    if (!session) {
+      session = new Session({
         sessionId,
-        createdAt: new Date().toISOString(),
-        prompts: [],
-        domain: null,
-        title: null,
-        mergedRequirements: [],
-        canonicalRequirements: [],
-        changeLog: [],
-        totalPromptCount: 0,
-        mergedPromptCount: 0,
-        lastOutput: null
+        changeLog: []
       });
+      await session.save();
     }
-    return this.state.get(sessionId);
+    return session;
   }
 
   /**
    * Add a new prompt to the session
    */
-  addPrompt(sessionId, prompt, domainInfo) {
-    const session = this.getSession(sessionId);
+  async addPrompt(sessionId, prompt, domainInfo) {
+    const session = await this.getSession(sessionId);
 
     const timestamp = new Date().toISOString();
     session.prompts.push({
@@ -68,7 +53,7 @@ export class PromptMerger {
     if (domainInfo.isSameDomain === false) {
       // Reset for new domain
       session.mergedPromptCount = 1;
-      session.mergedRequirements = [];
+      session.mergedRequirements = { functional: [], non_functional: [] };
       session.canonicalRequirements = [];
       session.changeLog = [{
         when: timestamp,
@@ -84,7 +69,8 @@ export class PromptMerger {
 
     session.domain = domainInfo.domain;
 
-    return session;
+    await session.save();
+    return session.toObject();
   }
 
   /**
@@ -102,8 +88,8 @@ export class PromptMerger {
    * @param {Array} newRequirementsArray - Array of requirement strings
    * @returns {Array} Merged requirements array
    */
-  mergeRequirements(sessionId, newRequirementsArray) {
-    const session = this.getSession(sessionId);
+  async mergeRequirements(sessionId, newRequirementsArray) {
+    const session = await this.getSession(sessionId);
 
     if (!Array.isArray(newRequirementsArray)) {
       return session.canonicalRequirements;
@@ -145,6 +131,7 @@ export class PromptMerger {
       non_functional: []
     };
 
+    await session.save();
     return session.canonicalRequirements;
   }
 
@@ -193,15 +180,15 @@ export class PromptMerger {
   /**
    * Clear session state
    */
-  clearSession(sessionId) {
-    this.state.delete(sessionId);
+  async clearSession(sessionId) {
+    await Session.deleteOne({ sessionId });
   }
 
   /**
    * Get current context for LLM
    */
-  getContext(sessionId) {
-    const session = this.getSession(sessionId);
+  async getContext(sessionId) {
+    const session = await this.getSession(sessionId);
     return {
       domain: session.domain,
       title: session.title,
@@ -216,8 +203,8 @@ export class PromptMerger {
   /**
    * Update session with LLM output
    */
-  updateWithOutput(sessionId, output) {
-    const session = this.getSession(sessionId);
+  async updateWithOutput(sessionId, output) {
+    const session = await this.getSession(sessionId);
 
     if (output.metadata?.title) {
       session.title = output.metadata.title;
@@ -228,12 +215,29 @@ export class PromptMerger {
       const reqs = Array.isArray(output.content.requirements)
         ? output.content.requirements
         : output.content.requirements.functional || [];
-      this.mergeRequirements(sessionId, reqs);
+      
+      // We process the requirements memory update synchronously here, then save below
+      const timestamp = new Date().toISOString();
+      for (const newReq of reqs) {
+        const conflict = this.findConflict(newReq, session.canonicalRequirements);
+        if (conflict) {
+          session.changeLog.push({ when: timestamp, note: `Updated requirement: "${conflict}" → "${newReq}"` });
+          session.canonicalRequirements = session.canonicalRequirements.filter(r => r !== conflict);
+          session.canonicalRequirements.push(newReq);
+        } else if (!this.isDuplicate(newReq, session.canonicalRequirements)) {
+          session.canonicalRequirements.push(newReq);
+        }
+      }
+      if (session.canonicalRequirements.length > 8) {
+        session.canonicalRequirements = session.canonicalRequirements.slice(-8);
+      }
+      session.mergedRequirements = { functional: session.canonicalRequirements, non_functional: [] };
     }
 
     session.lastOutput = output;
 
-    return session;
+    await session.save();
+    return session.toObject();
   }
 }
 

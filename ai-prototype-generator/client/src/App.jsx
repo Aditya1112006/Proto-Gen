@@ -13,6 +13,7 @@ function App() {
           <Route path="/generator" element={<PrototypeGenerator />} />
         </Routes>
       </Layout>
+
     </PrototypeProvider>
   )
 }

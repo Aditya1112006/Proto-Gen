@@ -1,8 +1,8 @@
 export const errorHandler = (err, req, res, next) => {
   console.error('Error:', err);
 
-  // OpenAI API errors
-  if (err.name === 'APIError') {
+  // LLM API errors (OpenAI / Gemini)
+  if (err.name === 'APIError' || err.name === 'GoogleGenAIError') {
     return res.status(500).json({
       success: false,
       error: {

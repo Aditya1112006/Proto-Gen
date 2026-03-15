@@ -31,6 +31,11 @@ export const PrototypeProvider = ({ children }) => {
 
   const [sessionId, setSessionId] = useState(null)
 
+  const [generationStage, setGenerationStage] = useState(null)
+
+  // Helper for delays
+  const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
   // GENERATE WORKFLOW
   const generate = async (prompt, mode) => {
 
@@ -40,6 +45,17 @@ export const PrototypeProvider = ({ children }) => {
 
       setIsLoading(true)
       setError(null)
+
+      // Stage 1: Detecting domain
+      setGenerationStage("detecting")
+      await wait(400)
+
+      // Stage 2: Merging prompts
+      setGenerationStage("merging")
+      await wait(400)
+
+      // Stage 3: Generating
+      setGenerationStage("generating")
 
       const response = await fetch(`${API_URL}/api/prototype/generate`, {
         method: "POST",
@@ -91,10 +107,14 @@ export const PrototypeProvider = ({ children }) => {
         setChangeLog(data.metadata.change_log)
       }
 
+      // Stage 4: Complete
+      setGenerationStage("complete")
+
     } catch (err) {
 
       console.error("Generate error:", err)
       setError(err.message || "Something went wrong")
+      setGenerationStage("error")
 
     } finally {
       setIsLoading(false)
@@ -181,6 +201,7 @@ export const PrototypeProvider = ({ children }) => {
 
     setChangeLog([])
     setError(null)
+    setGenerationStage(null)
   }
 
   return (
@@ -193,6 +214,7 @@ export const PrototypeProvider = ({ children }) => {
         counters,
         domainInfo,
         changeLog,
+        generationStage,
         generate,
         generateCodeForPrototype,
         clear

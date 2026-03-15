@@ -7,6 +7,7 @@ import CounterDisplay from '../components/Counters/CounterDisplay'
 import WorkflowOutput from '../components/Output/WorkflowOutput'
 import CodeOutput from '../components/Output/CodeOutput'
 import GenerateCodeButton from '../components/Output/GenerateCodeButton'
+import GenerationStatus from '../components/GenerationStatus'
 
 function PrototypeGenerator() {
 
@@ -20,6 +21,7 @@ function PrototypeGenerator() {
     counters,
     domainInfo,
     changeLog,
+    generationStage,
     generate,
     generateCodeForPrototype,
     clear
@@ -103,6 +105,9 @@ function PrototypeGenerator() {
 
           {/* Right Column */}
           <div className="lg:col-span-2 space-y-6">
+
+            {/* Generation Status */}
+            <GenerationStatus stage={generationStage} />
 
             {/* Error */}
             {error && (

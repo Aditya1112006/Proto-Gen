@@ -1,7 +1,21 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Sparkles, Zap, Brain, Code, ArrowRight, Check } from 'lucide-react'
+import { useEffect } from 'react'
 
 function LandingPage() {
+  const location = useLocation()
+
+  // Handle scroll to section when navigating with hash
+  useEffect(() => {
+    if (location.hash) {
+      const element = document.getElementById(location.hash.substring(1))
+      if (element) {
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth' })
+        }, 100)
+      }
+    }
+  }, [location])
   const features = [
     {
       icon: Brain,

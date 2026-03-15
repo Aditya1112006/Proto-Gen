@@ -1,12 +1,34 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Sparkles, Github, Menu, X } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 function Header() {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [activeSection, setActiveSection] = useState('')
 
   const isActive = (path) => location.pathname === path
+
+  // Track active section for About link
+  useEffect(() => {
+    const handleScroll = () => {
+      const aboutSection = document.getElementById('about')
+      if (aboutSection && location.pathname === '/') {
+        const rect = aboutSection.getBoundingClientRect()
+        if (rect.top <= 100 && rect.bottom >= 100) {
+          setActiveSection('about')
+        } else {
+          setActiveSection('')
+        }
+      } else {
+        setActiveSection('')
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    handleScroll()
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [location.pathname])
 
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
@@ -27,7 +49,7 @@ function Header() {
             <Link
               to="/"
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isActive('/')
+                isActive('/') && activeSection !== 'about'
                   ? 'bg-primary-50 text-primary-600'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
@@ -44,12 +66,16 @@ function Header() {
             >
               Generator
             </Link>
-            <a
-              href="#about"
-              className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+            <Link
+              to="/#about"
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isActive('/') && activeSection === 'about'
+                  ? 'bg-primary-50 text-primary-600'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
             >
               About
-            </a>
+            </Link>
           </nav>
 
           {/* Actions */}
@@ -86,7 +112,7 @@ function Header() {
               <Link
                 to="/"
                 className={`px-4 py-3 rounded-lg text-sm font-medium ${
-                  isActive('/') ? 'bg-primary-50 text-primary-600' : 'text-slate-600'
+                  isActive('/') && activeSection !== 'about' ? 'bg-primary-50 text-primary-600' : 'text-slate-600'
                 }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
@@ -101,13 +127,17 @@ function Header() {
               >
                 Generator
               </Link>
-              <a
-                href="#about"
-                className="px-4 py-3 rounded-lg text-sm font-medium text-slate-600"
+              <Link
+                to="/#about"
+                className={`px-4 py-3 rounded-lg text-sm font-medium ${
+                  isActive('/') && activeSection === 'about'
+                    ? 'bg-primary-50 text-primary-600'
+                    : 'text-slate-600'
+                }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 About
-              </a>
+              </Link>
               <Link
                 to="/generator"
                 className="px-4 py-3 rounded-lg text-sm font-medium bg-primary-600 text-white text-center"

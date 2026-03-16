@@ -46,15 +46,25 @@ function DomainChangeModal({ isOpen, onClose, onStartNew, oldDomain, newDomain }
             {/* Message */}
             <div className="bg-slate-50 rounded-xl p-4">
               <p className="text-sm text-slate-600 text-center">
-                The domain has changed, so we&apos;ve started a <strong>fresh prototype session</strong>.
-                Your previous prototype data has been cleared.
+                Your prompt is a <strong>complete pivot</strong> from <strong>&ldquo;{oldDomain || 'previous'}&rdquo;</strong>.
+                The previous context was discarded and a new prototype for <strong>&ldquo;{newDomain}&rdquo;</strong> was generated.
               </p>
             </div>
 
             {/* Info */}
-            <div className="flex items-start gap-2 text-sm text-slate-500">
-              <span className="text-amber-500 mt-0.5">•</span>
-              <p>Prompt history and merged requirements have been reset</p>
+            <div className="space-y-1.5">
+              <div className="flex items-start gap-2 text-sm text-slate-500">
+                <span className="text-amber-500 mt-0.5">•</span>
+                <p>Prompt history and merged requirements have been reset</p>
+              </div>
+              <div className="flex items-start gap-2 text-sm text-slate-500">
+                <span className="text-amber-500 mt-0.5">•</span>
+                <p>Click <strong>Dismiss</strong> to continue with the new prototype</p>
+              </div>
+              <div className="flex items-start gap-2 text-sm text-slate-500">
+                <span className="text-amber-500 mt-0.5">•</span>
+                <p>Click <strong>New Session</strong> to clear everything and start over</p>
+              </div>
             </div>
           </div>
         </div>

@@ -12,7 +12,18 @@ const ai = new GoogleGenAI({
 
 export class LLMService {
   constructor() {
-    this.model = (process.env.GEMINI_MODEL === 'gemini-1.5-flash' || process.env.GEMINI_MODEL === 'gemini-1.5-flash-latest') ? 'gemini-2.5-flash' : (process.env.GEMINI_MODEL || 'gemini-2.5-flash');
+    const rawModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const cleanModel = rawModel.trim().toLowerCase();
+    
+    // Fallbacks for unavailable models on the v1beta API tier
+    if (cleanModel.includes('1.5-flash')) {
+      this.model = 'gemini-2.5-flash';
+    } else if (cleanModel.includes('-8b')) {
+      this.model = 'gemini-2.0-flash'; // 8b doesn't exist here, fallback to 2.0
+    } else {
+      this.model = cleanModel;
+    }
+    
     this.workflowMaxTokens = 4096;    // Lean for workflow-only
     this.codeMaxTokens = 15000;       // Rich budget for code generation (Gemini Flash supports up to 65k)
     this.workflowTemperature = 0.2;   // Deterministic for architecture
@@ -127,14 +138,13 @@ export class LLMService {
 
       // Brute force close arrays and objects. 
       // Very basic heuristic: just stack closing braces until it parses.
-      const maxAttempts = 10;
+      const maxAttempts = 15;
       for (let i = 0; i < maxAttempts; i++) {
         try {
           return JSON.parse(repairedStr);
         } catch (repairError) {
-          if (repairError.message.includes('Expected')) {
-             // Depending on the Node version, the error might hint at what's missing,
-             // but it's simpler to try closing the most common unclosed structures.
+          const msg = repairError.message;
+          if (msg.includes('Expected') || msg.includes('Unexpected end of JSON input') || msg.includes('Unterminated')) {
              if (repairedStr.lastIndexOf('[') > repairedStr.lastIndexOf(']')) {
                repairedStr += ']';
              } else {

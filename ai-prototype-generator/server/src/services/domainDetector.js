@@ -112,63 +112,69 @@ export class DomainDetector {
    * Returns { isSameDomain: boolean, domain: string, score: number }
    */
   async detect(prompt, currentDomain) {
+    console.log('\n=== DOMAIN DETECTOR ===');
+    console.log('Prompt:', prompt.substring(0, 80));
+    console.log('Current domain:', currentDomain);
+
     if (!currentDomain) {
-      const inferred = await this.detectWithLLM(prompt);
+      // First prompt — use local heuristic (NO API call needed!)
+      const inferred = this.inferDomain(prompt);
+      console.log('First prompt → inferred domain:', inferred.name, 'score:', inferred.score);
       return {
-        isSameDomain: true, // First prompt always "same"
-        domain: inferred.domain,
+        isSameDomain: true,
+        domain: inferred.name,
         score: inferred.score,
-        message: `New prototype created in domain: ${inferred.domain}`
+        message: `New prototype created in domain: ${inferred.name}`
       };
     }
 
     try {
-      const model = (process.env.GEMINI_MODEL === 'gemini-1.5-flash' || process.env.GEMINI_MODEL === 'gemini-1.5-flash-latest') ? 'gemini-2.5-flash' : (process.env.GEMINI_MODEL || 'gemini-2.5-flash');
-      const systemInstruction = `You are a strict conversational state router for a UI engineering system. 
-The user currently has an active prototype for the domain: "${currentDomain}".
-The user just provided a new prompt. You must determine if they want to ADD/MODIFY the current "${currentDomain}" application, OR if they want to throw it away and build a COMPLETELY NEW, UNRELATED app in a different domain.
-
-Rules:
-1. If the prompt adds features, states, sections, or styles (e.g., "add a dashboard", "make it dark mode", "add a login screen"), respond with "intent": "modify".
-2. If the user explicitly asks for a completely different app (e.g., "now build me a health app instead", "forget that, make a crypto wallet"), respond with "intent": "new".
-3. Return JSON: { "intent": "modify" | "new", "new_domain": "string (only if new)" }`;
-
-      const response = await ai.models.generateContent({
-        model,
-        contents: `Current domain: ${currentDomain}. New prompt: "${prompt}"`,
-        config: {
-          systemInstruction,
-          temperature: 0.1,
-          maxOutputTokens: 150,
-          responseMimeType: "application/json",
-        }
-      });
-
-      const responseText = response.text;
-      const jsonStr = responseText.substring(responseText.indexOf('{'), responseText.lastIndexOf('}') + 1);
-      const result = JSON.parse(jsonStr || responseText);
+      // Heuristic Matcher 
+      const newKeywords = this.extractKeywords(prompt);
+      const currentKeywords = this.extractKeywords(currentDomain);
       
-      if (result.intent === 'new' && result.new_domain) {
+      const domainWords = this.domainKeywords[currentDomain.toLowerCase().replace(/\s+/g, '_')] || [];
+      const referenceKeywords = [...new Set([...currentKeywords, ...domainWords])];
+
+      const similarity = this.calculateSimilarity(newKeywords, referenceKeywords);
+
+      const newDomainInference = this.inferDomain(prompt);
+      const currentDomainNormalized = currentDomain.toLowerCase().replace(/\s+/g, '_');
+      const newDomainNormalized = newDomainInference.name.toLowerCase().replace(/\s+/g, '_');
+
+      const hasModifyIntent = /\b(add|change|update|modify|improve|fix|remove|tweak|adjust)\b/i.test(prompt);
+      const isDifferentDomain = newDomainNormalized !== currentDomainNormalized && newDomainInference.score > 0.05;
+      const isLowOverlap = similarity < 0.15;
+
+      console.log('New keywords:', newKeywords);
+      console.log('Reference keywords:', referenceKeywords);
+      console.log('Similarity:', similarity);
+      console.log('New domain inference:', newDomainInference.name, '(score:', newDomainInference.score, ')');
+      console.log('Current normalized:', currentDomainNormalized);
+      console.log('New normalized:', newDomainNormalized);
+      console.log('isDifferentDomain:', isDifferentDomain, '| isLowOverlap:', isLowOverlap, '| hasModifyIntent:', hasModifyIntent);
+
+      if (isDifferentDomain && isLowOverlap && !hasModifyIntent) {
+        console.log('>>> DOMAIN CHANGE DETECTED! isSameDomain = false');
         return {
           isSameDomain: false,
-          domain: result.new_domain,
+          domain: newDomainInference.name,
           oldDomain: currentDomain,
-          score: 0.9,
-          message: `Domain changed from "${currentDomain}" to "${result.new_domain}". Previous prototype cleared.`
+          score: newDomainInference.score,
+          message: `Domain changed from "${currentDomain}" to "${newDomainInference.name}". Previous prototype cleared.`
         };
       }
 
-      // Default to modifying the current session
+      console.log('>>> Same domain, merging prompt.');
       return {
         isSameDomain: true,
         domain: currentDomain,
-        score: 0.9,
+        score: similarity,
         message: `Prompt merged into current domain: ${currentDomain}`
       };
 
     } catch (error) {
-      console.error('LLM intent detection error:', error);
-      // Fallback
+      console.error('Heuristic intent detection error:', error);
       return {
         isSameDomain: true,
         domain: currentDomain,
@@ -183,7 +189,16 @@ Rules:
    */
   async detectWithLLM(prompt) {
     try {
-      const model = (process.env.GEMINI_MODEL === 'gemini-1.5-flash' || process.env.GEMINI_MODEL === 'gemini-1.5-flash-latest') ? 'gemini-2.5-flash' : (process.env.GEMINI_MODEL || 'gemini-2.5-flash');
+      const rawModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+      const cleanModel = rawModel.trim().toLowerCase();
+      let model = cleanModel;
+      
+      if (cleanModel.includes('1.5-flash')) {
+        model = 'gemini-2.5-flash';
+      } else if (cleanModel.includes('-8b')) {
+        model = 'gemini-2.0-flash';
+      }
+      
       const systemInstruction = 'You are a domain classifier. Given a user prompt, classify it into one of these domains: food_delivery, ecommerce, social_media, finance, health_fitness, education, productivity, entertainment, travel, real_estate, or general. Respond with JSON: { "domain": "domain_name", "confidence": 0.0-1.0 }';
 
       const response = await ai.models.generateContent({

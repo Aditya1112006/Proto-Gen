@@ -27,6 +27,11 @@ router.post('/generate', async (req, res, next) => {
 
     // Detect domain
     const domainInfo = await domainDetector.detect(prompt, currentContext.domain);
+    console.log('\n=== PROTOTYPE ROUTE ===');
+    console.log('domainInfo.isSameDomain:', domainInfo.isSameDomain);
+    console.log('domainInfo.domain:', domainInfo.domain);
+    console.log('domainInfo.oldDomain:', domainInfo.oldDomain);
+    console.log('Response will have domainChanged:', domainInfo.isSameDomain === false);
 
     // Update session with new prompt
     const sessionData = await promptMerger.addPrompt(session, prompt, domainInfo);

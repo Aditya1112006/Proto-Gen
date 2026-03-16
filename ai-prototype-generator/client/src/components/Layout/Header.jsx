@@ -48,31 +48,28 @@ function Header() {
           <nav className="hidden md:flex items-center gap-1">
             <Link
               to="/"
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isActive('/') && activeSection !== 'about'
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isActive('/') && activeSection !== 'about'
                   ? 'bg-primary-50 text-primary-600'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
+                }`}
             >
               Home
             </Link>
             <Link
               to="/generator"
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isActive('/generator')
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isActive('/generator')
                   ? 'bg-primary-50 text-primary-600'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
+                }`}
             >
               Generator
             </Link>
             <Link
               to="/#about"
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isActive('/') && activeSection === 'about'
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isActive('/') && activeSection === 'about'
                   ? 'bg-primary-50 text-primary-600'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
+                }`}
             >
               About
             </Link>
@@ -81,7 +78,7 @@ function Header() {
           {/* Actions */}
           <div className="hidden md:flex items-center gap-3">
             <a
-              href="https://github.com"
+              href="https://github.com/psjtech/Proto-Gen.git"
               target="_blank"
               rel="noopener noreferrer"
               className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
@@ -111,29 +108,26 @@ function Header() {
             <nav className="flex flex-col gap-1">
               <Link
                 to="/"
-                className={`px-4 py-3 rounded-lg text-sm font-medium ${
-                  isActive('/') && activeSection !== 'about' ? 'bg-primary-50 text-primary-600' : 'text-slate-600'
-                }`}
+                className={`px-4 py-3 rounded-lg text-sm font-medium ${isActive('/') && activeSection !== 'about' ? 'bg-primary-50 text-primary-600' : 'text-slate-600'
+                  }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Home
               </Link>
               <Link
                 to="/generator"
-                className={`px-4 py-3 rounded-lg text-sm font-medium ${
-                  isActive('/generator') ? 'bg-primary-50 text-primary-600' : 'text-slate-600'
-                }`}
+                className={`px-4 py-3 rounded-lg text-sm font-medium ${isActive('/generator') ? 'bg-primary-50 text-primary-600' : 'text-slate-600'
+                  }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Generator
               </Link>
               <Link
                 to="/#about"
-                className={`px-4 py-3 rounded-lg text-sm font-medium ${
-                  isActive('/') && activeSection === 'about'
+                className={`px-4 py-3 rounded-lg text-sm font-medium ${isActive('/') && activeSection === 'about'
                     ? 'bg-primary-50 text-primary-600'
                     : 'text-slate-600'
-                }`}
+                  }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 About

@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react'
 import { Send, Loader2, Code, FileText, AlertCircle } from 'lucide-react'
 
-function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domainInfo = {} }) {
+function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domainChanged = false, oldDomain = null }) {
   const [prompt, setPrompt] = useState('')
   const [showDomainAlert, setShowDomainAlert] = useState(false)
 
   // Show domain alert when domain changes
   useEffect(() => {
-    if (domainInfo.changed) {
+    if (domainChanged) {
       setShowDomainAlert(true)
-      const timer = setTimeout(() => setShowDomainAlert(false), 5001)
+      const timer = setTimeout(() => setShowDomainAlert(false), 8000)
       return () => clearTimeout(timer)
     }
-  }, [domainInfo.changed, domainInfo.current])
+  }, [domainChanged])
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -25,20 +25,24 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domain
   return (
     <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
       {/* Domain Change Alert */}
-      {showDomainAlert && domainInfo.changed && (
-        <div className="bg-amber-50 border-b border-amber-200 p-4 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+      {showDomainAlert && domainChanged && (
+        <div className="bg-amber-50 border-b border-amber-200 p-4 flex items-start gap-3 transition-all">
+          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm text-amber-800 font-medium">
-              Domain changed from "{domainInfo.oldDomain || 'previous'}" to "{domainInfo.current}". Previous prototype cleared.
+            <h4 className="text-sm font-semibold text-amber-800">Domain Change Detected</h4>
+            <p className="text-sm text-amber-700 mt-1">
+              Your prompt was different from <strong>"{oldDomain || 'previous'}"</strong>. Your previous progress has been cleared.
             </p>
+            <div className="mt-3 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDomainAlert(false)}
+                className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 text-sm font-medium rounded-md transition-colors"
+              >
+                Understood, Dismiss
+              </button>
+            </div>
           </div>
-          <button
-            onClick={() => setShowDomainAlert(false)}
-            className="text-amber-600 hover:text-amber-800 text-sm font-medium"
-          >
-            Dismiss
-          </button>
         </div>
       )}
 
@@ -47,11 +51,10 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domain
         <button
           type="button"
           onClick={() => setMode('workflow')}
-          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${
-            mode === 'workflow'
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${mode === 'workflow'
               ? 'bg-primary-50 text-primary-600 border-b-2 border-primary-500'
               : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-          }`}
+            }`}
         >
           <FileText className="w-4 h-4" />
           Workflow Only
@@ -59,14 +62,13 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domain
         <button
           type="button"
           onClick={() => setMode('workflow+code')}
-          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${
-            mode === 'workflow+code'
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${mode === 'workflow+code'
               ? 'bg-primary-50 text-primary-600 border-b-2 border-primary-500'
               : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-          }`}
+            }`}
         >
           <Code className="w-4 h-4" />
-            Workflow + Code
+          Workflow + Code
         </button>
       </div>
 

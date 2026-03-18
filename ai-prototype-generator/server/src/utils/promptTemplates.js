@@ -69,7 +69,13 @@ Your output MUST exactly match this structure. Do not invent new top-level keys.
           "Dashboard": {
             "HeroSection": ["WelcomeMessage", "CallToActionButton"],
             "DataMetricsGrid": ["ActiveUsersStat", "RevenueStat", "ConversionStat"],
-            "RecentActivityFeed": {
+            "Rec
+            
+            
+            
+            
+            
+            entActivityFeed": {
               "FeedHeader": ["FeedTitle", "FilterDropdown"],
               "FeedList": ["ActivityItemRow", "ActivityItemRow"]
             }

@@ -25,9 +25,9 @@ export class LLMService {
     }
     
     this.workflowMaxTokens = 4096;    // Lean for workflow-only
-    this.codeMaxTokens = 15000;       // Rich budget for code generation (Gemini Flash supports up to 65k)
-    this.workflowTemperature = 0.2;   // Deterministic for architecture
-    this.codeTemperature = 0.35;      // Slightly creative for code
+    this.codeMaxTokens = 20000;       // Rich budget for code generation (Gemini Flash supports up to 65k)
+    this.workflowTemperature = 0.25;   // Deterministic for architecture
+    this.codeTemperature = 0.4;      // Slightly creative for code
   }
 
   /**

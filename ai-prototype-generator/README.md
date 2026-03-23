@@ -1,378 +1,102 @@
-# AI Prototype Generator
+# Proto-Gen
 
-An AI-powered prototype generator for designers and non-technical founders. Describe your product idea in natural language, and get back a structured workflow, requirements, and even runnable code prototypes.
+An AI-powered prototype generator for designers and non-technical founders. Describe your product idea in natural language, and get back a structured workflow, requirements, and highly responsive, production-ready code prototypes.
 
-## Features
+## ✨ Features
 
-- **Natural Language to Prototype**: Describe your idea and get structured output
-- **Domain-Aware Merging**: Same-domain prompts automatically merge; different-domain prompts start fresh
+- **Google Gemini 2.0 Flash**: Blazing fast AI generation powered by Google's latest model.
+- **Natural Language to Prototype**: Describe your idea and get structured output (Workflow, Architecture, Requirements).
 - **Two Generation Modes**:
-  - **Workflow Only**: User flows, requirements, and acceptance criteria
-  - **Workflow + Code**: Everything above plus HTML/CSS/JS or React code
-- **Session Persistence**: Your work is preserved via session IDs stored in localStorage
-- **Interactive File Management**: Download generated code as individual files or bundled text
+  - *Workflow Only*: User flows, requirements, and acceptance criteria.
+  - *Workflow + Code*: Everything above plus fully runnable HTML/CSS/JS or React code.
+- **Live Sandbox Preview**: Instantly preview generated code artifacts in a secure iframe sandbox.
+- **Iterative Prompting**: Follow-up prompts merge intelligently with your current context to refine your app.
+- **Terminal Aesthetic**: A custom, fully mobile-responsive "Dark Developer" UI featuring neon accents and glassmorphism.
+- **Session Persistence**: Your active workflow is preserved via session IDs stored in localStorage.
 
-## Architecture
+## 🏗️ Architecture
 
-```
+```text
 ai-prototype-generator/
-├── client/                 # React + Vite frontend
+├── client/                 # React 18 + Vite frontend (Tailwind CSS)
 │   ├── src/
-│   │   ├── components/     # React components
-│   │   ├── context/        # React Context for state management
-│   │   ├── pages/          # Page components
-│   │   └── services/       # API client
-│   └── ...
-├── server/                 # Express + OpenAI backend
+│   │   ├── components/     # Responsive UI components (Prompts, Nav, Modals)
+│   │   ├── context/        # React Context for session management
+│   │   ├── pages/          # Landing Page & Generator Workspace
+│   │   └── services/       # API client config
+├── server/                 # Express.js + Node.js backend
 │   ├── src/
-│   │   ├── routes/         # API routes
-│   │   ├── services/       # Business logic (LLM, domain detection, merging)
-│   │   └── utils/          # Prompt templates
-│   └── ...
-└── package.json            # Root with concurrently for dev
+│   │   ├── routes/         # Prototype API endpoints
+│   │   ├── services/       # Gemini LLM integration, feature extraction
+│   │   └── utils/          # Prompts and heuristics
+└── package.json            # Root workspace config
 ```
 
-## Tech Stack
+## 💻 Tech Stack
 
-**Frontend**:
-- React 18 with Hooks
-- Vite for fast development
-- Tailwind CSS for styling
-- Axios for API calls
-- Lucide React for icons
+- **Frontend**: React 18, Vite, Tailwind CSS, Lucide React (Icons)
+- **Backend**: Node.js, Express.js
+- **AI Model**: `@google/genai` (Gemini 2.0 Flash)
+- **Storage**: In-memory session tracking (or optional MongoDB)
 
-**Backend**:
-- Express.js
-- OpenAI GPT-4o Mini for generation
-- In-memory session storage (Map-based)
-- CORS enabled for local development
+## 🚀 Getting Started
 
-## Prerequisites
+### Prerequisites
+- Node.js 18+
+- Go to [Google AI Studio](https://aistudio.google.com/) and get a free Gemini API key.
 
-- Node.js 18+ and npm
-- OpenAI API key ([get one here](https://platform.openai.com/api-keys))
-
-## Installation
-
-### 1. Clone and Install Dependencies
-
+### 1. Install Dependencies
 ```bash
+git clone <your-repo>
 cd ai-prototype-generator
 
-# Install all dependencies (root + client + server)
+# Install root, client, and server dependencies
 npm run install:all
 ```
 
-Or install manually:
-```bash
-# Root
-npm install
-
-# Client
-cd client && npm install && cd ..
-
-# Server
-cd server && npm install && cd ..
-```
-
 ### 2. Configure Environment Variables
-
-**Server** (create `server/.env`):
-```env
-PORT=5001
-NODE_ENV=development
-OPENAI_API_KEY=your_openai_api_key_here
-CORS_ORIGIN=http://localhost:5173
-```
-
-**Client** (create `client/.env`):
-```env
-VITE_API_URL=http://localhost:5001
-```
-
-Copy from the provided examples:
+Copy the specific configuration files:
 ```bash
-cp server/.env.example server/.env
+cp .env.example server/.env
 cp client/.env.example client/.env
 ```
 
-Then edit `server/.env` to add your OpenAI API key.
+Open `server/.env` and add your **Gemini API Key**:
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.0-flash
+```
 
-### 3. Start Development Server
-
+### 3. Start the Application
 ```bash
-# From the root directory
+# Run both frontend and backend concurrently
 npm run dev
 ```
+- Client runs at: `http://localhost:5173`
+- Server runs at: `http://localhost:5001`
 
-This starts both:
-- **Client** at http://localhost:5173 (Vite dev server)
-- **Server** at http://localhost:5001 (Express API)
+---
 
-Or run individually:
-```bash
-npm run client   # Start frontend only
-npm run server   # Start backend only
-```
+## 📖 Usage
 
-### 4. Run Demo Script
+1. **Visit the Workspace**: Go to `http://localhost:5173` and click "Enter Workspace".
+2. **Describe Your App**: Type a detailed prompt (e.g., *"Build a responsive e-commerce dashboard with a dark mode toggle"*).
+3. **Choose a Mode**: Select **Workflow Only** to plan, or **Workflow + Code** to get instant HTML/CSS output.
+4. **Iterate**: Don't like something? Don't start over. Just type "Make the buttons blue and larger" and hit Execute. Proto-Gen will intelligently merge the changes.
+5. **Export**: Click the "Pull Artifacts" button to download a ZIP of your generated source code.
 
-Test the API endpoints without the UI:
+## 🚢 Deployment
 
-```bash
-# Make sure server is running first
-npm run server
+**Backend (Render / Railway):**
+1. Set the root directory to `server`.
+2. Add Env Vars: `GEMINI_API_KEY`, `NODE_ENV=production`, and `CORS_ORIGIN=https://your-frontend.com`
+3. Build command: `npm install`, Start command: `npm start`
 
-# In another terminal
-node demo.js
-```
+**Frontend (Vercel / Netlify):**
+1. Set the root directory to `client`.
+2. Add Env Var: `VITE_API_URL=https://your-backend.com`
+3. Build command: `npm run build`, Publish directory: `dist`
 
-This runs through all major API endpoints:
-- Health check
-- Generate prototype
-- Merge same-domain prompts
-- Domain change detection
-- Code generation
-- Session management
+## 📜 License
 
-## Usage
-
-1. **Open the app** at http://localhost:5173
-2. **Enter your product idea** in the text box
-   - Example: "Build a meal-planning app for busy students"
-3. **Select mode**:
-   - **Workflow Only**: Get user flows, requirements, and acceptance criteria
-   - **Workflow + Code**: Also get runnable HTML/CSS/JS code
-4. **Click Generate** to create your prototype
-5. **Add more prompts** to refine:
-   - Same domain: Automatically merges with current prototype
-   - Different domain: Clears and starts fresh with notification
-6. **Generate Code** (if in Workflow Only mode initially)
-7. **Download files** individually or as a bundle
-
-## API Endpoints
-
-### POST `/api/prototype/generate`
-Generate or merge a prototype.
-
-**Request**:
-```json
-{
-  "prompt": "Build a meal-planning app for students",
-  "mode": "workflow",          // or "workflow+code"
-  "sessionId": "optional-uuid" // omit to create new session
-}
-```
-
-**Response**:
-```json
-{
-  "success": true,
-  "sessionId": "uuid-string",
-  "domainChanged": false,
-  "metadata": {
-    "title": "Meal Planner",
-    "domain": "food_delivery",
-    "merged_prompt_count": 2,
-    "total_prompt_count": 3,
-    "change_log": [{"when": "2024-01-15T...", "note": "Added grocery export"}],
-    "files": [{"filename": "App.jsx", "language": "jsx"}]
-  },
-  "content": {
-    "workflow": "...",
-    "requirements": [...],
-    "layout": "...",
-    "raw": {...}
-  },
-  "files": [{"filename": "...", "content": "...", "language": "..."}]
-}
-```
-
-### POST `/api/prototype/code`
-Generate code for existing prototype.
-
-### POST `/api/prototype/clear`
-Clear session and return new session ID.
-
-### GET `/api/prototype/session/:sessionId`
-Get current session state.
-
-### GET `/api/health`
-Health check endpoint.
-
-## API Examples with curl
-
-### Generate a New Prototype
-
-```bash
-curl -X POST http://localhost:5001/api/prototype/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "Build a meal-planning app for busy students",
-    "mode": "workflow"
-  }'
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
-  "domainChanged": false,
-  "metadata": {
-    "title": "Meal Planner",
-    "domain": "food_delivery",
-    "merged_prompt_count": 1,
-    "total_prompt_count": 1,
-    "change_log": [{"when": "2024-01-15T10:00:00Z", "note": "New prototype started - ..."}],
-    "files": []
-  },
-  "content": {
-    "workflow": "...",
-    "requirements": ["..."],
-    "layout": "...",
-    "raw": {...}
-  },
-  "files": []
-}
-```
-
-### Merge with Existing Session
-
-```bash
-curl -X POST http://localhost:5001/api/prototype/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "Add a grocery list export feature",
-    "mode": "workflow",
-    "sessionId": "550e8400-e29b-41d4-a716-446655440000"
-  }'
-```
-
-### Generate Code
-
-```bash
-curl -X POST http://localhost:5001/api/prototype/code \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sessionId": "550e8400-e29b-41d4-a716-446655440000",
-    "lastPrompt": "Generate React code for the meal planner"
-  }'
-```
-
-### Get Session State
-
-```bash
-curl http://localhost:5001/api/prototype/session/550e8400-e29b-41d4-a716-446655440000
-```
-
-### Clear Session
-
-```bash
-curl -X POST http://localhost:5001/api/prototype/clear \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sessionId": "550e8400-e29b-41d4-a716-446655440000"
-  }'
-```
-
-## Domain Detection
-
-The system uses keyword-based scoring to detect domains:
-
-| Domain | Keywords |
-|--------|----------|
-| `food_delivery` | food, delivery, restaurant, order, meal, grocery |
-| `ecommerce` | shop, store, product, cart, checkout, payment |
-| `social_media` | social, post, feed, follow, like, comment, share |
-| `finance` | bank, finance, money, transaction, budget, investment |
-| `health_fitness` | health, fitness, workout, exercise, gym, medical |
-| `education` | learn, course, student, teacher, class, lesson |
-| `productivity` | task, todo, project, calendar, schedule |
-| `entertainment` | game, video, movie, music, streaming |
-| `travel` | travel, trip, booking, hotel, flight |
-| `real_estate` | property, apartment, rent, lease, mortgage |
-
-**Similarity threshold**: 0.3 (Jaccard similarity with domain keyword matching)
-
-## Development
-
-### Project Structure
-
-```
-client/src/
-├── components/
-│   ├── Counters/         # CounterDisplay.jsx
-│   ├── History/            # HistoryList.jsx
-│   ├── Layout/             # Header.jsx, Layout.jsx
-│   ├── Output/             # CodeOutput.jsx, GenerateCodeButton.jsx, WorkflowOutput.jsx
-│   └── PromptInput/        # PromptInput.jsx
-├── context/
-│   └── PrototypeContext.jsx  # Global state + localStorage persistence
-├── pages/
-│   ├── LandingPage.jsx
-│   └── PrototypeGenerator.jsx
-└── services/
-    └── api.js              # API client functions
-
-server/src/
-├── routes/
-│   └── prototype.js        # API routes
-├── services/
-│   ├── domainDetector.js   # Domain detection logic
-│   ├── llmService.js       # OpenAI integration
-│   └── promptMerger.js     # Session management & merging
-├── utils/
-│   └── promptTemplates.js  # SYSTEM_PROMPT and formatters
-└── index.js                # Express app setup
-```
-
-### Adding New Features
-
-**Domain Keywords**: Edit `server/src/services/domainDetector.js`
-
-**System Prompt**: Modify `server/src/utils/promptTemplates.js`
-
-**UI Components**: Add to `client/src/components/` and import in pages
-
-## Troubleshooting
-
-### "Cannot find module 'openai'"
-```bash
-cd server && npm install
-```
-
-### "OPENAI_API_KEY is not set"
-- Copy `server/.env.example` to `server/.env`
-- Add your API key to `server/.env`
-
-### Port already in use
-Change the port in `server/.env`:
-```env
-PORT=5001
-```
-
-And update `client/.env`:
-```env
-VITE_API_URL=http://localhost:5001
-```
-
-### CORS errors
-Ensure `CORS_ORIGIN` in `server/.env` matches your client's URL (usually `http://localhost:5173` for Vite).
-
-## License
-
-MIT
-
-## Contributing
-
-This is a hackathon project. Feel free to fork and extend!
-
-## Credits
-
-Built with:
-- [OpenAI](https://openai.com/) for GPT-4o Mini
-- [React](https://react.dev/) for UI
-- [Tailwind CSS](https://tailwindcss.com/) for styling
-- [Express](https://expressjs.com/) for API
-- [Vite](https://vitejs.dev/) for build tooling
+MIT License - feel free to build upon this for your own hackathon projects!

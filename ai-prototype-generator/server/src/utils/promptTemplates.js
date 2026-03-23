@@ -386,6 +386,7 @@ Design:
  - ALL layout, colors, and spacing go on HTML elements as Tailwind class strings
  - CRITICAL TOKEN LIMIT RULE: DO NOT write large inline <svg> code. You MUST use <i data-lucide="icon-name"></i> for ALL icons to prevent the JSON output from truncating.
  - CRITICAL TOKEN LIMIT RULE: Limit any generated lists, grids, or mock data structures to a MAXIMUM of 3 items to save output tokens.
+ - CRITICAL TOKEN LIMIT RULE: Output token limits are strict (8192). If the requested app is massively complex (like a Ludo game or ERP system), DO NOT attempt to write the entire logic. Instead, write a simplified MVP version. Keep Javascript under 300 lines. Keep HTML under 300 lines. If you exceed this, the JSON will be cut off mid-way and fail entirely.
 
  ### 5C. BUTTONS (UNIVERSAL PATTERN)
  Primary:

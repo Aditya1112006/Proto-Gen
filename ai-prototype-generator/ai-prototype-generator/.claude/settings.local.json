@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d D:/Pratham/Hackathon/ai-prototype-generator/**)",
+      "Bash(npm start:*)",
+      "Bash(curl:*)",
+      "Bash(cd:*)",
+      "Bash(taskkill:*)",
+      "Bash(npx kill-port:*)"
+    ]
+  }
+}

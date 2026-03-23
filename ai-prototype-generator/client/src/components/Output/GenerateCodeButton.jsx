@@ -19,12 +19,13 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
       if (result?.success) {
         setGenerated(true)
 
-        // Store files from the result - normalize file objects
+        // Store files from the result
         const filesFromResult = (result.data?.files || []).map(f => ({
           filename: f.filename || f.name || 'unnamed.txt',
           language: f.language || 'text',
           content: f.content || ''
         }))
+        
         if (filesFromResult.length > 0) {
           setGeneratedFiles(filesFromResult)
           setShowModal(true)
@@ -47,16 +48,15 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
   }
 
   const handleDownloadZip = () => {
-    // Create a simple zip-like download by creating a blob with file contents
     const fileContents = generatedFiles.map(file => (
-      `=== ${file.filename} ===\n\n${file.content || ''}\n\n`
+      `/* === ${file.filename} === */\n\n${file.content || ''}\n\n`
     )).join('\n')
 
     const blob = new Blob([fileContents], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `prototype-files-${Date.now()}.txt`
+    a.download = `archive_build_${Date.now()}.txt`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -76,7 +76,7 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
   const handleCopyAll = async () => {
     try {
       const allContent = generatedFiles.map(file => (
-        `========== ${file.filename} ==========\n\n${file.content || ''}\n\n`
+        `/* ========== ${file.filename} ========== */\n\n${file.content || ''}\n\n`
       )).join('\n')
 
       await navigator.clipboard.writeText(allContent)
@@ -101,40 +101,41 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
 
   return (
     <>
-      <div className="bg-gradient-to-br from-primary-50 to-primary-100/50 rounded-2xl shadow-lg shadow-primary-100/50 border border-primary-200 p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="glass-card p-6 border-l-4 border-l-neon-green relative overflow-hidden group">
+        <div className="absolute inset-0 bg-neon-green/5 group-hover:bg-neon-green/10 transition-colors"></div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative z-10">
           <div>
-            <h3 className="text-lg font-semibold text-slate-800 mb-1">Ready to Generate Code?</h3>
-            <p className="text-sm text-slate-600">
+            <h3 className="text-sm font-bold text-white uppercase tracking-widest font-mono mb-2">Build Target Available</h3>
+            <p className="text-sm text-gray-400 font-mono">
               {hasPrototype
-                ? 'Generate a working code prototype based on your requirements.'
-                : 'Enter a prompt first to generate a prototype.'}
+                ? '> Run compiler to generate UI implementation payload.'
+                : '> Awaiting valid workflow blueprint.'}
             </p>
           </div>
 
           <button
             onClick={handleClick}
             disabled={!hasPrototype || isGenerating || disabled}
-            className={`flex items-center justify-center gap-2 px-6 py-3 font-medium rounded-xl transition-all shadow-lg ${
+            className={`w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-8 py-4 font-bold uppercase tracking-widest text-xs transition-all border ${
               generated
-                ? 'bg-emerald-500 text-white shadow-emerald-500/30'
-                : 'bg-primary-600 text-white shadow-primary-600/30 hover:bg-primary-700 hover:shadow-primary-600/40'
-            } disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none`}
+                ? 'bg-neon-green text-dark-950 border-neon-green shadow-[0_0_20px_rgba(57,255,20,0.5)]'
+                : 'bg-dark-950 text-neon-green border-neon-green hover:bg-neon-green hover:text-dark-950 hover:shadow-[0_0_30px_rgba(57,255,20,0.4)]'
+            } disabled:opacity-30 disabled:border-dark-600 disabled:text-dark-500 disabled:bg-dark-950 disabled:hover:shadow-none disabled:cursor-not-allowed font-mono`}
           >
             {isGenerating ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Generating...
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Compiling...
               </>
             ) : generated ? (
               <>
-                <Check className="w-5 h-5" />
-                Generated!
+                <Check className="w-4 h-4" />
+                Done
               </>
             ) : (
               <>
-                <Code className="w-5 h-5" />
-                Generate Code
+                <Code className="w-4 h-4" />
+                $ make build
               </>
             )}
           </button>
@@ -143,63 +144,63 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
 
       {/* Files Modal */}
       {showModal && generatedFiles.length > 0 && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-dark-950/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <div className="bg-dark-900 border border-dark-600 shadow-[0_0_50px_rgba(57,255,20,0.1)] max-w-5xl w-full max-h-[85vh] overflow-hidden flex flex-col font-mono text-gray-300">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0 px-4 sm:px-6 py-4 border-b border-dark-700 bg-dark-950">
               <div>
-                <h3 className="text-lg font-semibold text-slate-800">Generated Files</h3>
-                <p className="text-sm text-slate-500">{generatedFiles.length} file{generatedFiles.length > 1 ? 's' : ''} ready to download</p>
+                <h3 className="text-sm font-bold text-neon-green uppercase tracking-widest">Compiler Result</h3>
+                <p className="text-xs text-gray-500 mt-1">[{generatedFiles.length} ARTIFACTS MEMORY_MAPPED]</p>
               </div>
               <button
                 onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                className="self-end sm:self-auto min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-red-900/40 hover:text-red-500 rounded-sm transition-colors text-gray-500 border border-transparent hover:border-red-500/50"
               >
-                <X className="w-5 h-5 text-slate-500" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-auto p-6 space-y-4">
+            <div className="flex-1 overflow-auto p-6 space-y-6 bg-dark-950/50 scrollbar-hide">
               {generatedFiles.map((file, index) => (
-                <div key={index} className="border border-slate-200 rounded-xl overflow-hidden">
+                <div key={index} className="border border-dark-700 bg-dark-900 overflow-hidden relative group">
                   {/* File Header */}
-                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
-                    <div className="flex items-center gap-2">
-                      <FileCode className="w-4 h-4 text-slate-500" />
-                      <span className="font-medium text-slate-700">{file.filename}</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 px-4 py-3 bg-dark-950 border-b border-dark-800">
+                    <div className="flex items-center gap-3">
+                      <FileCode className="w-4 h-4 text-neon-green" />
+                      <span className="font-bold text-gray-200 text-sm tracking-wide break-all">{file.filename}</span>
                       {file.language && (
-                        <span className="text-xs px-2 py-0.5 bg-slate-200 text-slate-600 rounded-full">
+                        <span className="text-[10px] px-2 py-0.5 border border-dark-600 text-gray-400 bg-dark-800 uppercase whitespace-nowrap hidden sm:inline-block">
                           {file.language}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
                       <button
                         onClick={() => handleCopyFile(file)}
-                        className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                        className={`w-full sm:w-auto flex-1 min-h-[44px] sm:min-h-0 flex items-center justify-center text-xs px-4 py-1.5 font-bold uppercase transition-colors border ${
                           copiedFile === file.filename
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-50'
+                            ? 'bg-neon-green/20 text-neon-green border-neon-green/50'
+                            : 'bg-dark-800 border-dark-600 text-gray-400 hover:text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/10'
                         }`}
                       >
-                        {copiedFile === file.filename ? 'Copied!' : 'Copy'}
+                        {copiedFile === file.filename ? 'YANKED' : 'YANK'}
                       </button>
                       <button
                         onClick={() => handleDownloadIndividual(file)}
-                        className="text-xs px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1"
+                        className="w-full sm:w-auto flex-1 min-h-[44px] sm:min-h-0 flex items-center justify-center text-xs px-4 py-1.5 font-bold uppercase transition-colors border text-gray-400 bg-dark-800 border-dark-600 hover:text-neon-purple hover:border-neon-purple/50 hover:bg-neon-purple/10 gap-1.5"
                       >
-                        <Download className="w-3 h-3" />
-                        Download
+                        <Download className="w-3.5 h-3.5" />
+                        SAVE
                       </button>
                     </div>
                   </div>
 
                   {/* File Content Preview */}
-                  <div className="p-4 bg-slate-50 overflow-auto max-h-48">
-                    <pre className="text-xs text-slate-600 font-mono whitespace-pre-wrap">
-                      {(file.content || '').substring(0, 500)}
-                      {(file.content || '').length > 500 && '...'}
+                  <div className="p-4 overflow-auto max-h-60 relative group-hover:bg-dark-800/20 transition-colors">
+                    <pre className="text-xs text-gray-400 font-mono whitespace-pre-wrap leading-relaxed">
+                      {(file.content || '').substring(0, 800)}
+                      {(file.content || '').length > 800 && '\n... [TRUNCATED_BUFFER]'}
                     </pre>
                   </div>
                 </div>
@@ -207,31 +208,31 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center">
+            <div className="px-4 sm:px-6 py-4 border-t border-dark-700 bg-dark-950 flex flex-col-reverse sm:flex-row justify-between items-center gap-4 sm:gap-0">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 text-slate-600 font-medium hover:text-slate-800 transition-colors"
+                className="w-full sm:w-auto min-h-[44px] flex items-center justify-center px-6 py-2 border border-dark-600 text-gray-400 font-bold uppercase tracking-widest text-xs hover:text-white hover:border-gray-500 transition-colors"
               >
                 Close
               </button>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-3 items-center">
                 <button
                   onClick={handleCopyAll}
-                  className={`px-4 py-2 font-medium rounded-lg transition-colors flex items-center gap-2 ${
+                  className={`w-full sm:w-auto min-h-[44px] flex items-center justify-center px-6 py-2 font-bold uppercase tracking-widest text-xs transition-colors gap-2 border ${
                     copiedAll
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                      ? 'bg-neon-green/20 text-neon-green border-neon-green/50'
+                      : 'bg-dark-800 border-dark-600 text-gray-300 hover:text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/10'
                   }`}
                 >
-                  <Copy className="w-4 h-4" />
-                  {copiedAll ? 'Copied All!' : 'Copy All'}
+                  <Copy className="w-3.5 h-3.5" />
+                  {copiedAll ? 'YANKED_ALL' : 'YANK_ALL'}
                 </button>
                 <button
                   onClick={handleDownloadZip}
-                  className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+                  className="w-full sm:w-auto min-h-[44px] flex items-center justify-center px-6 py-2 font-bold uppercase tracking-widest text-xs bg-neon-green text-dark-950 hover:bg-neon-green/80 transition-colors shadow-[0_0_15px_rgba(57,255,20,0.3)] gap-2 border border-neon-green"
                 >
-                  <Download className="w-4 h-4" />
-                  Download All
+                  <Download className="w-3.5 h-3.5" />
+                  SAVE _ALL
                 </button>
               </div>
             </div>

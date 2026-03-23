@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { AlertCircle, RefreshCw, LayoutTemplate } from 'lucide-react'
 import { usePrototypeContext } from '../context/PrototypeContext'
 import PromptInput from '../components/PromptInput/PromptInput'
@@ -15,6 +15,7 @@ function PrototypeGenerator() {
 
   const [mode, setMode] = useState('workflow')
   const navigate = useNavigate()
+  const location = useLocation()
 
   const {
     isLoading,
@@ -37,6 +38,17 @@ function PrototypeGenerator() {
     await generate(prompt, mode)
   }
 
+  useEffect(() => {
+    if (location.state?.initialPrompt) {
+      const initialPrompt = location.state.initialPrompt;
+      // Clear state so it doesn't re-trigger on hot reload or plain reload
+      navigate(location.pathname, { replace: true, state: {} });
+      // Trigger submission
+      handleSubmit(initialPrompt);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state?.initialPrompt]);
+
   const handleGenerateCode = async () => {
     await generateCodeForPrototype()
   }
@@ -46,16 +58,22 @@ function PrototypeGenerator() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-dark-950 py-8 px-4 sm:px-6 lg:px-8 relative font-mono text-gray-300">
+      <div className="bg-grid-pattern absolute inset-0 z-0 opacity-40 mix-blend-overlay"></div>
+      <div className="scanline"></div>
+
+      <div className="max-w-7xl mx-auto relative z-10 animate-fade-in">
 
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">
+        <div className="mb-8 border-b border-dark-800 pb-6">
+          <div className="inline-block px-3 py-1 bg-neon-purple/10 border border-neon-purple/30 text-neon-purple text-xs tracking-wider uppercase mb-4 shadow-[0_0_10px_rgba(191,90,242,0.1)]">
+            Workspace Active
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
             Prototype Generator
           </h1>
-          <p className="text-slate-600">
-            Describe your product idea. We'll detect domains, merge related prompts, and generate a prototype.
+          <p className="text-gray-400 max-w-2xl text-sm leading-relaxed">
+            INPUT_REQUIREMENTS &gt; DETECT_DOMAINS &gt; MERGE_PROMPTS &gt; COMPILE_PROTOTYPE
           </p>
         </div>
 
@@ -99,10 +117,10 @@ function PrototypeGenerator() {
               <button
                 onClick={handleClear}
                 disabled={isLoading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-slate-600 font-medium rounded-xl hover:bg-slate-100 transition-colors border border-slate-200"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-gray-400 font-bold uppercase tracking-widest text-xs hover:bg-dark-800 hover:text-red-500 hover:border-red-500/50 transition-all border border-dark-600 font-mono"
               >
                 <RefreshCw className="w-4 h-4" />
-                Start New Prototype
+                $ rm -rf ./prototype
               </button>
             )}
 
@@ -116,12 +134,12 @@ function PrototypeGenerator() {
 
             {/* Error */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+              <div className="bg-red-900/20 border border-red-500/30 p-4 font-mono">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-red-800">Error</p>
-                    <p className="text-sm text-red-600 mt-1">{error}</p>
+                    <p className="text-xs font-bold text-red-500 uppercase tracking-widest">PIPELINE_FAULT</p>
+                    <p className="text-sm text-red-400 mt-1">{error}</p>
                   </div>
                 </div>
               </div>
@@ -129,11 +147,11 @@ function PrototypeGenerator() {
 
             {/* Empty State */}
             {!currentPrototype && !isLoading && !error && (
-              <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-12 text-center">
+              <div className="glass-card p-12 text-center font-mono">
 
-                <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <div className="w-20 h-20 bg-dark-800 border border-dark-600 flex items-center justify-center mx-auto mb-6">
                   <svg
-                    className="w-10 h-10 text-slate-400"
+                    className="w-10 h-10 text-neon-green/30"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -147,12 +165,12 @@ function PrototypeGenerator() {
                   </svg>
                 </div>
 
-                <h3 className="text-xl font-semibold text-slate-800 mb-2">
-                  Ready to Generate
+                <h3 className="text-lg font-bold text-white mb-2 uppercase tracking-widest">
+                  Awaiting Input
                 </h3>
 
-                <p className="text-slate-500 max-w-md mx-auto">
-                  Enter your product idea in the text box on the left. Try:
+                <p className="text-gray-500 max-w-md mx-auto text-sm">
+                  &gt; Enter system specifications in the left panel. Try:
                   "Build a meal-planning app for busy students"
                 </p>
 

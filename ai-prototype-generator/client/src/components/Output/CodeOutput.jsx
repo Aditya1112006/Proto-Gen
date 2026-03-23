@@ -14,17 +14,15 @@ function CodeOutput({ files, content }) {
     const cssFile = files.find(f => (f.name || f.filename || '').endsWith('.css'))
     const jsFile = files.find(f => (f.name || f.filename || '').endsWith('.js'))
 
-    if (!htmlFile) return '<html><body><p>No HTML file found.</p></body></html>'
+    if (!htmlFile) return '<html><body style="background:#0a0a0f;color:#39ff14;font-family:monospace;padding:20px;"><p>[SYS_ERR] No HTML root found in build artifact.</p></body></html>'
 
     let html = htmlFile.content || ''
 
-    // Inject CSS inline (replace the <link> tag or inject before </head>)
+    // Inject CSS inline
     if (cssFile?.content) {
       const styleTag = `<style>\n${cssFile.content}\n</style>`
-      // Remove external stylesheet link references
       html = html.replace(/<link[^>]*href=["']styles\.css["'][^>]*\/?>/gi, '')
       html = html.replace(/<link[^>]*href=["']style\.css["'][^>]*\/?>/gi, '')
-      // Inject before </head> or at the start
       if (html.includes('</head>')) {
         html = html.replace('</head>', `${styleTag}\n</head>`)
       } else {
@@ -32,13 +30,11 @@ function CodeOutput({ files, content }) {
       }
     }
 
-    // Inject JS inline (replace the <script src> tag or inject before </body>)
+    // Inject JS inline
     if (jsFile?.content) {
       const scriptTag = `<script>\n${jsFile.content}\n</script>`
-      // Remove external script references
       html = html.replace(/<script[^>]*src=["']app\.js["'][^>]*><\/script>/gi, '')
       html = html.replace(/<script[^>]*src=["']script\.js["'][^>]*><\/script>/gi, '')
-      // Inject before </body> or at the end
       if (html.includes('</body>')) {
         html = html.replace('</body>', `${scriptTag}\n</body>`)
       } else {
@@ -53,14 +49,14 @@ function CodeOutput({ files, content }) {
     if (!content?.layout_plan) return null
 
     return (
-      <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Code2 className="w-5 h-5 text-primary-500" />
-          <h3 className="text-lg font-semibold text-slate-800">Code</h3>
+      <div className="glass-card p-6">
+        <div className="flex items-center gap-2 mb-4 border-b border-dark-700 pb-2">
+          <Code2 className="w-5 h-5 text-neon-green" />
+          <h3 className="text-sm font-bold text-white uppercase tracking-widest font-mono">Source Code</h3>
         </div>
-        <div className="bg-slate-50 rounded-xl p-6 text-center">
-          <p className="text-slate-500">
-            No code files generated yet. Switch to "Workflow + Code" mode to generate code.
+        <div className="bg-dark-950 border border-dark-800 p-6 text-center">
+          <p className="text-gray-500 font-mono text-sm">
+            &gt; Awaiting flag `--emit=code` or switch to "Workflow + Code" mode.
           </p>
         </div>
       </div>
@@ -108,66 +104,66 @@ function CodeOutput({ files, content }) {
   }
 
   const containerClass = isFullscreen
-    ? 'fixed inset-0 z-50 bg-white flex flex-col'
-    : 'bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 overflow-hidden'
+    ? 'fixed inset-0 z-50 bg-dark-950 flex flex-col font-mono'
+    : 'glass-card overflow-hidden font-mono text-sm'
 
   return (
     <div className={containerClass}>
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0 px-4 sm:px-6 py-4 border-b border-dark-700 bg-dark-900/80">
         <div className="flex items-center gap-2">
-          <Code2 className="w-5 h-5 text-primary-500" />
-          <h3 className="text-lg font-semibold text-slate-800">Generated Code</h3>
+          <Code2 className="w-5 h-5 text-neon-green" />
+          <h3 className="text-sm font-bold text-white uppercase tracking-widest">Compiler Output</h3>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1 min-h-[44px] sm:min-h-0 px-3 py-1.5 text-xs font-bold text-gray-400 hover:text-neon-cyan hover:bg-neon-cyan/10 border border-transparent hover:border-neon-cyan/50 rounded-sm transition-colors uppercase tracking-widest"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen Preview'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
           <button
             onClick={downloadAll}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 min-h-[44px] sm:min-h-0 px-3 py-1.5 text-xs font-bold text-dark-950 bg-neon-green hover:bg-neon-green/80 rounded-sm transition-colors uppercase tracking-widest"
           >
             <Download className="w-4 h-4" />
-            Download All
+            Pull Artifacts
           </button>
         </div>
       </div>
 
-      {/* Tabs: Preview + File Tabs */}
-      <div className="flex border-b border-slate-100 overflow-x-auto">
+      {/* Tabs */}
+      <div className="flex border-b border-dark-800 overflow-x-auto bg-dark-950/50 scrollbar-hide">
         {/* Live Preview Tab */}
         <button
           onClick={() => { setActiveTab('preview'); setCopied(false) }}
-          className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold whitespace-nowrap transition-colors ${
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-colors ${
             activeTab === 'preview'
-              ? 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              ? 'bg-neon-cyan/10 text-neon-cyan border-b-2 border-neon-cyan'
+              : 'text-gray-500 hover:text-gray-300 hover:bg-dark-800 border-b-2 border-transparent'
           }`}
         >
           <Monitor className="w-4 h-4" />
-          Live Preview
+          Live_Render
         </button>
 
         {/* Divider */}
-        <div className="w-px bg-slate-200 my-2" />
+        <div className="w-px bg-dark-800 my-2 mx-1" />
 
         {/* File Tabs */}
         {files.map((file, index) => (
           <button
             key={index}
             onClick={() => { setActiveTab(index); setCopied(false) }}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-colors ${
               activeTab === index
-                ? 'bg-slate-50 text-primary-600 border-b-2 border-primary-500'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                ? 'bg-neon-green/5 text-neon-green border-b-2 border-neon-green'
+                : 'text-gray-500 hover:text-gray-300 hover:bg-dark-800 border-b-2 border-transparent'
             }`}
           >
             <FileCode className="w-4 h-4" />
-            {file.name || file.filename || `File ${index + 1}`}
+            {file.name || file.filename || `blob_${index}.txt`}
           </button>
         ))}
       </div>
@@ -175,53 +171,53 @@ function CodeOutput({ files, content }) {
       {/* Content Area */}
       {activeTab === 'preview' ? (
         /* ─── Live Preview Iframe ─── */
-        <div className={`bg-white ${isFullscreen ? 'flex-1' : ''}`}>
-          <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100">
-            <Play className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="text-xs font-medium text-emerald-700">
-              Interactive preview — your generated app is running below
+        <div className={`bg-white ${isFullscreen ? 'flex-1' : ''} relative`}>
+          <div className="absolute top-0 left-0 right-0 flex items-center gap-2 px-4 py-1.5 bg-dark-900 border-b border-dark-800 z-10 opacity-70 hover:opacity-100 transition-opacity">
+            <Play className="w-3.5 h-3.5 text-neon-cyan" />
+            <span className="text-[10px] font-bold text-neon-cyan uppercase tracking-widest">
+              &gt; SANDBOX_ENV_ACTIVE
             </span>
           </div>
           <iframe
             srcDoc={previewSrcDoc}
             title="Live Code Preview"
             sandbox="allow-scripts allow-modals"
-            className={`w-full border-0 bg-white ${isFullscreen ? 'flex-1 h-full' : ''}`}
-            style={{ minHeight: isFullscreen ? 'calc(100vh - 160px)' : '500px' }}
+            className={`w-full border-0 bg-white pt-8 ${isFullscreen ? 'flex-1 h-full' : ''}`}
+            style={{ minHeight: isFullscreen ? 'calc(100vh - 160px)' : '600px' }}
           />
         </div>
       ) : (
         /* ─── Code Editor View ─── */
-        <div className="relative">
+        <div className="relative bg-dark-950 min-h-[500px]">
           {/* Toolbar */}
           <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
             <button
               onClick={copyToClipboard}
-              className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 bg-dark-800/80 border border-dark-600 text-gray-300 text-xs font-bold uppercase tracking-widest rounded-sm hover:border-neon-green hover:text-neon-green transition-colors"
             >
               {copied ? (
                 <>
-                  <Check className="w-4 h-4" />
-                  Copied!
+                  <Check className="w-3.5 h-3.5" />
+                  YANKED
                 </>
               ) : (
                 <>
-                  <Copy className="w-4 h-4" />
-                  Copy
+                  <Copy className="w-3.5 h-3.5" />
+                  YANK
                 </>
               )}
             </button>
             <button
               onClick={downloadFile}
-              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 bg-dark-800/80 border border-dark-600 text-gray-300 text-xs font-bold uppercase tracking-widest rounded-sm hover:border-neon-cyan hover:text-neon-cyan transition-colors"
             >
-              <Download className="w-4 h-4" />
-              Download
+              <Download className="w-3.5 h-3.5" />
+              SAVE
             </button>
           </div>
 
           {/* Code Block */}
-          <pre className="p-6 pt-16 overflow-x-auto text-sm bg-slate-950 text-slate-200 font-mono">
+          <pre className="p-6 pt-16 overflow-x-auto text-sm text-gray-300 font-mono h-full">
             <code>{currentFile?.content}</code>
           </pre>
         </div>

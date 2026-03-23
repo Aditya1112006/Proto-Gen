@@ -131,7 +131,9 @@ export class LLMService {
       let repairedStr = jsonStr;
       
       // Auto-append missing double quotes if the string ended inside one
-      const quoteCount = (repairedStr.match(/"/g) || []).length;
+      // We must ignore escaped quotes (\\") when counting
+      const strWithoutEscapes = repairedStr.replace(/\\\\"/g, '');
+      const quoteCount = (strWithoutEscapes.match(/"/g) || []).length;
       if (quoteCount % 2 !== 0) {
         repairedStr += '"';
       }
@@ -158,7 +160,7 @@ export class LLMService {
         }
       }
 
-      console.error('Failed to parse or repair LLM response as JSON. Excerpt:', llmResponse.substring(0, 200));
+      console.error('Failed to parse or repair LLM response as JSON. End snippet:', llmResponse.substring(Math.max(0, llmResponse.length - 200)));
       return {};
     }
   }

@@ -31,71 +31,75 @@ function Header() {
   }, [location.pathname])
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+    <header className="bg-dark-900/80 backdrop-blur-xl border-b border-dark-700 sticky top-0 z-50 font-mono">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/20 group-hover:shadow-primary-500/30 transition-shadow">
-              <Sparkles className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 bg-neon-green/10 border border-neon-green/40 flex items-center justify-center shadow-[0_0_15px_rgba(57,255,20,0.1)] group-hover:shadow-[0_0_25px_rgba(57,255,20,0.3)] transition-shadow">
+               <span className="text-neon-green font-bold text-lg">P</span>
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-              ProtoGen
+            <span className="text-xl font-bold text-white tracking-tight">
+              Proto<span className="text-neon-green">Gen</span>
             </span>
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-6">
             <Link
               to="/"
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isActive('/') && activeSection !== 'about'
-                  ? 'bg-primary-50 text-primary-600'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              className={`text-sm font-bold uppercase tracking-widest transition-colors flex items-center gap-2 ${isActive('/') && activeSection !== 'about'
+                  ? 'text-neon-green text-glow'
+                  : 'text-gray-400 hover:text-white'
                 }`}
             >
-              Home
+               {isActive('/') && activeSection !== 'about' && <span className="text-neon-green">&gt;</span>}
+              HOME
             </Link>
             <Link
               to="/generator"
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isActive('/generator')
-                  ? 'bg-primary-50 text-primary-600'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              className={`text-sm font-bold uppercase tracking-widest transition-colors flex items-center gap-2 ${isActive('/generator')
+                  ? 'text-neon-cyan text-glow-cyan'
+                  : 'text-gray-400 hover:text-white'
                 }`}
             >
-              Generator
+              {isActive('/generator') && <span className="text-neon-cyan">&gt;</span>}
+              WORKSPACE
             </Link>
             <Link
               to="/#about"
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isActive('/') && activeSection === 'about'
-                  ? 'bg-primary-50 text-primary-600'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              className={`text-sm font-bold uppercase tracking-widest transition-colors flex items-center gap-2 ${isActive('/') && activeSection === 'about'
+                  ? 'text-neon-purple text-glow-purple'
+                  : 'text-gray-400 hover:text-white'
                 }`}
             >
-              About
+              {isActive('/') && activeSection === 'about' && <span className="text-neon-purple">&gt;</span>}
+              DOCS
             </Link>
           </nav>
 
           {/* Actions */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-4">
             <a
               href="https://github.com/psjtech/Proto-Gen.git"
               target="_blank"
               rel="noopener noreferrer"
-              className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+              className="p-2 text-gray-500 hover:text-white transition-colors border border-transparent hover:border-dark-600 bg-dark-800/50 hover:bg-dark-700"
             >
               <Github className="w-5 h-5" />
             </a>
             <Link
               to="/generator"
-              className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20"
+              className="px-6 py-2 bg-neon-green text-dark-950 text-sm font-bold tracking-widest uppercase hover:bg-neon-green/90 transition-all shadow-[0_0_15px_rgba(57,255,20,0.2)] hover:shadow-[0_0_25px_rgba(57,255,20,0.4)] flex items-center gap-2"
             >
-              Get Started
+              <Terminal className="w-4 h-4" />
+              INIT
             </Link>
           </div>
 
           {/* Mobile menu button */}
           <button
-            className="md:hidden p-2 text-slate-600"
+            className="md:hidden p-2 text-gray-400 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -104,40 +108,40 @@ function Header() {
 
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-slate-100 animate-fade-in">
-            <nav className="flex flex-col gap-1">
-              <Link
+          <div className="md:hidden py-4 border-t border-dark-700 bg-dark-950 animate-fade-in absolute left-0 right-0 px-4 shadow-2xl">
+            <nav className="flex flex-col gap-2">
+               <Link
                 to="/"
-                className={`px-4 py-3 rounded-lg text-sm font-medium ${isActive('/') && activeSection !== 'about' ? 'bg-primary-50 text-primary-600' : 'text-slate-600'
+                className={`px-4 py-3 text-sm font-bold uppercase tracking-widest border border-transparent ${isActive('/') && activeSection !== 'about' ? 'bg-neon-green/10 text-neon-green border-neon-green/30' : 'text-gray-400 hover:bg-dark-800'
                   }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Home
+                HOME
               </Link>
               <Link
                 to="/generator"
-                className={`px-4 py-3 rounded-lg text-sm font-medium ${isActive('/generator') ? 'bg-primary-50 text-primary-600' : 'text-slate-600'
+                className={`px-4 py-3 text-sm font-bold uppercase tracking-widest border border-transparent ${isActive('/generator') ? 'bg-neon-cyan/10 text-neon-cyan border-neon-cyan/30' : 'text-gray-400 hover:bg-dark-800'
                   }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Generator
+                WORKSPACE
               </Link>
               <Link
                 to="/#about"
-                className={`px-4 py-3 rounded-lg text-sm font-medium ${isActive('/') && activeSection === 'about'
-                    ? 'bg-primary-50 text-primary-600'
-                    : 'text-slate-600'
+                className={`px-4 py-3 text-sm font-bold uppercase tracking-widest border border-transparent ${isActive('/') && activeSection === 'about'
+                    ? 'bg-neon-purple/10 text-neon-purple border-neon-purple/30'
+                    : 'text-gray-400 hover:bg-dark-800'
                   }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
-                About
+                DOCS
               </Link>
               <Link
                 to="/generator"
-                className="px-4 py-3 rounded-lg text-sm font-medium bg-primary-600 text-white text-center"
+                className="mt-4 px-4 py-3 text-sm font-bold uppercase tracking-widest bg-neon-green text-dark-950 text-center"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Get Started
+                INIT_WORKSPACE
               </Link>
             </nav>
           </div>
@@ -145,6 +149,13 @@ function Header() {
       </div>
     </header>
   )
+}
+
+// Fallback for Terminal icon since it wasn't imported from lucide-react in the original header
+function Terminal(props) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+  );
 }
 
 export default Header

@@ -23,23 +23,24 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domain
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+    <div className="glass-card overflow-hidden">
       {/* Domain Change Alert */}
       {showDomainAlert && domainChanged && (
-        <div className="bg-amber-50 border-b border-amber-200 p-4 flex items-start gap-3 transition-all">
-          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h4 className="text-sm font-semibold text-amber-800">Domain Change Detected</h4>
-            <p className="text-sm text-amber-700 mt-1">
-              Your prompt was different from <strong>"{oldDomain || 'previous'}"</strong>. Your previous progress has been cleared.
+        <div className="bg-red-900/30 border-b border-red-500/50 p-4 flex items-start gap-3 transition-all relative overflow-hidden">
+          <div className="absolute inset-0 bg-red-500/10 animate-pulse"></div>
+          <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5 relative z-10" />
+          <div className="flex-1 relative z-10">
+            <h4 className="text-sm font-bold text-red-500 uppercase tracking-wider">Domain Change Detected</h4>
+            <p className="text-sm text-red-300 mt-1">
+              Input diverged from &lt;<strong className="text-red-400">{oldDomain || 'previous_domain'}</strong>&gt;. Session context purged.
             </p>
-            <div className="mt-3 flex gap-3">
+            <div className="mt-4 flex gap-3">
               <button
                 type="button"
                 onClick={() => setShowDomainAlert(false)}
-                className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 text-sm font-medium rounded-md transition-colors"
+                className="px-4 py-1.5 border border-red-500/50 hover:bg-red-500/20 text-red-400 text-xs font-bold uppercase tracking-widest rounded-sm transition-colors"
               >
-                Understood, Dismiss
+                ACKNOWLEDGE
               </button>
             </div>
           </div>
@@ -47,13 +48,14 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domain
       )}
 
       {/* Mode Toggle */}
-      <div className="flex border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row border-b border-dark-700 bg-dark-900/50">
         <button
           type="button"
           onClick={() => setMode('workflow')}
-          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${mode === 'workflow'
-              ? 'bg-primary-50 text-primary-600 border-b-2 border-primary-500'
-              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+          className={`flex-1 flex items-center justify-center gap-2 px-2 sm:px-4 py-3 sm:py-4 min-h-[44px] text-xs sm:text-sm font-bold uppercase tracking-wider transition-all border-b-2 sm:border-b-2 sm:border-r border-dark-700
+              ${mode === 'workflow'
+              ? 'bg-neon-purple/10 text-neon-purple sm:border-b-neon-purple shadow-[inset_0_-2px_10px_rgba(191,90,242,0.2)]'
+              : 'text-gray-500 hover:text-gray-300 border-transparent hover:bg-dark-800'
             }`}
         >
           <FileText className="w-4 h-4" />
@@ -62,9 +64,10 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domain
         <button
           type="button"
           onClick={() => setMode('workflow+code')}
-          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${mode === 'workflow+code'
-              ? 'bg-primary-50 text-primary-600 border-b-2 border-primary-500'
-              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+          className={`flex-1 flex items-center justify-center gap-2 px-2 sm:px-4 py-3 sm:py-4 min-h-[44px] text-xs sm:text-sm font-bold uppercase tracking-wider transition-all border-b-2
+              ${mode === 'workflow+code'
+              ? 'bg-neon-green/10 text-neon-green border-neon-green shadow-[inset_0_-2px_10px_rgba(57,255,20,0.2)]'
+              : 'text-gray-500 hover:text-gray-300 border-transparent hover:bg-dark-800'
             }`}
         >
           <Code className="w-4 h-4" />
@@ -74,49 +77,56 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domain
 
       {/* Counters */}
       {(counters.totalPrompts > 0 || counters.mergedPrompts > 0) && (
-        <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-          <span className="text-xs text-slate-500">
-            Prompts entered: <span className="font-medium text-slate-700">{counters.totalPrompts || 0}</span>
+        <div className="px-4 py-2 bg-dark-950/80 border-b border-dark-700 flex items-center justify-between">
+          <span className="text-xs text-gray-500 font-mono">
+            [PROMPTS_RCV: <span className="font-bold text-neon-cyan">{counters.totalPrompts || 0}</span>]
             {' '}—{' '}
-            Prompts merged: <span className="font-medium text-slate-700">{counters.mergedPrompts || 0}</span>
+            [MERGED_DOCS: <span className="font-bold text-neon-cyan">{counters.mergedPrompts || 0}</span>]
           </span>
         </div>
       )}
 
       {/* Input Area */}
-      <form onSubmit={handleSubmit} className="p-4">
-        <div className="relative">
+      <form onSubmit={handleSubmit} className="p-1 relative bg-dark-900/40">
+        <div className="relative flex flex-col sm:block">
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe your product idea... (e.g., 'Build a meal-planning app for busy students')"
-            className="w-full h-32 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+            placeholder="> Enter system specifications... (e.g. 'Initialize admin dashboard with dark mode')"
+            className="w-full h-32 sm:h-40 px-4 sm:px-5 py-4 pb-2 sm:pb-4 bg-transparent border-none text-gray-200 placeholder:text-gray-600 resize-none focus:ring-0 text-sm leading-relaxed antialiased"
             disabled={isLoading}
           />
 
           {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={!prompt.trim() || isLoading}
-            className="absolute bottom-3 right-3 flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary-600/20"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                Generate
-              </>
-            )}
-          </button>
+          <div className="p-2 sm:p-0 sm:absolute sm:bottom-4 sm:right-4 w-full sm:w-auto flex justify-end">
+            <button
+              type="submit"
+              disabled={!prompt.trim() || isLoading}
+              className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-6 py-2.5 sm:py-2 bg-neon-green text-dark-950 text-xs font-bold uppercase tracking-widest hover:bg-neon-green/90 hover:shadow-[0_0_20px_rgba(57,255,20,0.4)] disabled:opacity-30 disabled:hover:shadow-none disabled:cursor-not-allowed transition-all"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Processing
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  Execute
+                </>
+              )}
+            </button>
+          </div>
         </div>
-
-        <p className="mt-3 text-xs text-slate-400">
-          Tip: Add more details to refine your prototype. Same domain prompts will be merged automatically.
-        </p>
+        
+        <div className="px-4 pb-3 flex justify-between items-center border-t border-dark-800/50 pt-2 mx-1 mt-1">
+          <p className="text-[10px] text-gray-600 uppercase tracking-wider">
+            Context merging active. Iterative prompts supported.
+          </p>
+          <span className="text-[10px] text-neon-green/50 animate-pulse font-mono block">
+            _READY
+          </span>
+        </div>
       </form>
     </div>
   )

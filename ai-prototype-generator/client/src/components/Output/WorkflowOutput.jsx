@@ -8,7 +8,6 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
 
   const { summary, roles, workflow, requirements, acceptance_criteria, layout, pipeline } = content
 
-  // Helper to ensure any hallucinated object arrays don't crash React
   const safeRender = (val) => {
     if (typeof val === 'string') return val;
     if (typeof val === 'number') return String(val);
@@ -18,11 +17,8 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
     return String(val);
   };
 
-  // Helper to force generic names into professional component names
   const formatNodeName = (name) => {
     if (!name) return 'UnknownComponent';
-    
-    // Safety check: If AI hallucinates an object (like {id, date}) instead of a string
     if (typeof name !== 'string') {
       if (name.name) return formatNodeName(name.name);
       if (name.type) return formatNodeName(name.type);
@@ -30,67 +26,52 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
       return 'DataDisplayComponent';
     }
     const nameMap = {
-      text: 'TypographyLabel',
-      icon: 'ThemeGraphic',
-      label: 'DescriptorText',
-      image: 'MediaAsset',
-      button: 'ActionTrigger',
-      title: 'HeadlineTypography',
-      div: 'ContentContainer',
-      value: 'DataMetricDisplay'
+      text: 'TypographyLabel', icon: 'ThemeGraphic', label: 'DescriptorText',
+      image: 'MediaAsset', button: 'ActionTrigger', title: 'HeadlineTypography',
+      div: 'ContentContainer', value: 'DataMetricDisplay'
     };
-
     const lowerName = name.toLowerCase().trim();
-    if (nameMap[lowerName]) {
-      return nameMap[lowerName];
-    }
-
-    // Ensure PascalCase if it's multiple words or lowercase
+    if (nameMap[lowerName]) return nameMap[lowerName];
     if (name.includes(' ') || name.toLowerCase() === name) {
-      return name.split(/[\s_]+/).map(word => 
+      return name.split(/[\s_]+/).map(word =>
         word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
       ).join('');
     }
-
     return name;
   };
 
-  // Recursive function to render layout tree
   const renderLayoutTree = (obj, level = 0) => {
     if (!obj || typeof obj !== 'object') return null
-
     return (
-      <ul className={`${level > 0 ? 'ml-4 border-l-2 border-slate-200 pl-3' : ''}`}>
+      <ul className={`${level > 0 ? 'ml-4 border-l border-dark-600 pl-3' : ''}`}>
         {Object.entries(obj).map(([key, value], index) => {
           const hasChildren = value && (typeof value === 'object' && !Array.isArray(value) ? Object.keys(value).length > 0 : Array.isArray(value) && value.length > 0)
           const displayKey = formatNodeName(key);
-
           return (
             <li key={key} className="relative">
               <div className="flex items-start py-1">
                 {level > 0 && (
-                  <span className="absolute -left-3 top-3 w-3 h-px bg-slate-300"></span>
+                  <span className="absolute -left-3 top-3 w-3 h-px bg-dark-600"></span>
                 )}
                 <div className="flex items-center">
                   {hasChildren ? (
-                    <span className="w-2 h-2 bg-blue-500 rounded-full mr-2 flex-shrink-0"></span>
+                    <span className="w-2 h-2 bg-neon-cyan rounded-full mr-2 flex-shrink-0 shadow-[0_0_6px_rgba(0,240,255,0.5)]"></span>
                   ) : (
-                    <span className="w-2 h-2 bg-slate-400 rounded-full mr-2 flex-shrink-0"></span>
+                    <span className="w-2 h-2 bg-gray-600 rounded-full mr-2 flex-shrink-0"></span>
                   )}
-                  <span className={`font-medium ${hasChildren ? 'text-slate-800' : 'text-slate-600'}`}>
+                  <span className={`font-medium font-mono text-sm ${hasChildren ? 'text-white' : 'text-gray-400'}`}>
                     {displayKey}
                   </span>
                 </div>
               </div>
-
               {Array.isArray(value) ? (
-                <ul className="ml-4 border-l-2 border-slate-200 pl-3">
+                <ul className="ml-4 border-l border-dark-600 pl-3">
                   {value.map((item, idx) => (
                     <li key={idx} className="relative py-1">
-                      <span className="absolute -left-3 top-3 w-3 h-px bg-slate-300"></span>
+                      <span className="absolute -left-3 top-3 w-3 h-px bg-dark-600"></span>
                       <div className="flex items-center">
-                        <span className="w-1.5 h-1.5 bg-slate-300 rounded-full mr-2 flex-shrink-0"></span>
-                        <span className="text-slate-600 text-sm">{formatNodeName(item)}</span>
+                        <span className="w-1.5 h-1.5 bg-dark-500 rounded-full mr-2 flex-shrink-0"></span>
+                        <span className="text-gray-400 text-sm font-mono">{formatNodeName(item)}</span>
                       </div>
                     </li>
                   ))}
@@ -106,21 +87,21 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-mono">
 
       {/* Title and Summary */}
-      <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-6">
+      <div className="glass-card p-4 sm:p-6">
         {metadata?.title && (
-          <h2 className="text-2xl font-bold text-slate-800 mb-3">{metadata.title}</h2>
+          <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">{metadata.title}</h2>
         )}
         {summary && (
-          <p className="text-slate-600 leading-relaxed">{summary}</p>
+          <p className="text-gray-400 leading-relaxed text-sm">{summary}</p>
         )}
         {metadata?.domain && (
           <div className="mt-4 flex items-center gap-2">
-            <Tag className="w-4 h-4 text-slate-400" />
-            <span className="text-xs text-slate-400 uppercase tracking-wider">Domain:</span>
-            <span className="px-2.5 py-1 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 text-sm font-medium rounded-full border border-blue-100">
+            <Tag className="w-4 h-4 text-gray-500" />
+            <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Domain:</span>
+            <span className="px-2.5 py-1 bg-neon-cyan/10 text-neon-cyan text-xs font-bold border border-neon-cyan/30 uppercase tracking-wider">
               {metadata.domain}
             </span>
           </div>
@@ -129,11 +110,13 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
 
       {/* Detected Features */}
       {features && features.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="w-5 h-5 text-amber-500" />
-            <h3 className="text-lg font-semibold text-slate-800">Detected Features</h3>
-            <span className="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+        <div className="glass-card p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between sm:justify-start gap-2 mb-4 w-full">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-yellow-500" />
+              <h3 className="text-sm font-bold text-white uppercase tracking-widest">Detected Features</h3>
+            </div>
+            <span className="text-[10px] text-gray-500 bg-dark-800 border border-dark-600 px-2 py-0.5 uppercase tracking-widest">
               {features.length} found
             </span>
           </div>
@@ -141,7 +124,7 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
             {features.map((feature, index) => (
               <span
                 key={index}
-                className="px-3 py-1.5 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 text-sm font-medium rounded-lg border border-amber-100"
+                className="px-3 py-1.5 bg-yellow-900/20 text-yellow-500 text-xs font-bold border border-yellow-700/30 uppercase tracking-wider"
               >
                 {safeRender(feature)}
               </span>
@@ -152,16 +135,16 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
 
       {/* Roles */}
       {roles && roles.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-6">
+        <div className="glass-card p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Users className="w-5 h-5 text-violet-500" />
-            <h3 className="text-lg font-semibold text-slate-800">Roles</h3>
+            <Users className="w-5 h-5 text-neon-purple" />
+            <h3 className="text-sm font-bold text-white uppercase tracking-widest">Roles</h3>
           </div>
           <div className="flex flex-wrap gap-2">
             {roles.map((role, index) => (
               <span
                 key={index}
-                className="px-3 py-1.5 bg-gradient-to-r from-violet-50 to-purple-50 text-violet-700 text-sm font-medium rounded-lg border border-violet-100"
+                className="px-3 py-1.5 bg-neon-purple/10 text-neon-purple text-xs font-bold border border-neon-purple/30 uppercase tracking-wider"
               >
                 {safeRender(role)}
               </span>
@@ -172,24 +155,24 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
 
       {/* Workflow */}
       {workflow && workflow.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-6">
+        <div className="glass-card p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
-            <ListTodo className="w-5 h-5 text-blue-500" />
-            <h3 className="text-lg font-semibold text-slate-800">Workflow</h3>
+            <ListTodo className="w-5 h-5 text-neon-cyan" />
+            <h3 className="text-sm font-bold text-white uppercase tracking-widest">Workflow</h3>
           </div>
           <div className="relative">
             {workflow.map((step, index) => (
               <div key={index} className="flex items-start gap-4 pb-6 last:pb-0">
                 <div className="flex flex-col items-center">
-                  <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold">
+                  <div className="w-8 h-8 bg-neon-cyan/10 border border-neon-cyan/40 text-neon-cyan flex items-center justify-center text-sm font-bold shadow-[0_0_10px_rgba(0,240,255,0.1)]">
                     {index + 1}
                   </div>
                   {index < workflow.length - 1 && (
-                    <div className="w-0.5 h-full bg-slate-200 my-2" />
+                    <div className="w-px h-full bg-dark-600 my-2" />
                   )}
                 </div>
-                <div className="pt-1.5 pb-2 border-b border-slate-100 flex-1 last:border-0">
-                  <p className="text-slate-700 leading-relaxed text-sm">
+                <div className="pt-1.5 pb-2 border-b border-dark-700 flex-1 last:border-0">
+                  <p className="text-gray-300 leading-relaxed text-sm">
                     {safeRender(step)}
                   </p>
                 </div>
@@ -201,16 +184,16 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
 
       {/* Requirements */}
       {requirements && requirements.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-6">
+        <div className="glass-card p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
-            <ClipboardList className="w-5 h-5 text-emerald-500" />
-            <h3 className="text-lg font-semibold text-slate-800">Key Requirements</h3>
+            <ClipboardList className="w-5 h-5 text-neon-green" />
+            <h3 className="text-sm font-bold text-white uppercase tracking-widest">Key Requirements</h3>
           </div>
           <ul className="space-y-3">
             {requirements.map((req, index) => (
               <li key={index} className="flex items-start gap-3">
-                <div className="mt-1 w-1.5 h-1.5 bg-emerald-400 rounded-full flex-shrink-0" />
-                <span className="text-slate-700 text-sm leading-relaxed">{safeRender(req)}</span>
+                <div className="mt-1.5 w-1.5 h-1.5 bg-neon-green rounded-full flex-shrink-0 shadow-[0_0_6px_rgba(57,255,20,0.5)]" />
+                <span className="text-gray-300 text-sm leading-relaxed">{safeRender(req)}</span>
               </li>
             ))}
           </ul>
@@ -219,12 +202,12 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
 
       {/* Layout - Tree Structure */}
       {layout && typeof layout === 'object' && Object.keys(layout).length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-6">
+        <div className="glass-card p-4 sm:p-6 overflow-hidden">
           <div className="flex items-center gap-2 mb-4">
-            <Layout className="w-5 h-5 text-indigo-500" />
-            <h3 className="text-lg font-semibold text-slate-800">UI Architecture</h3>
+            <Layout className="w-5 h-5 text-neon-purple" />
+            <h3 className="text-sm font-bold text-white uppercase tracking-widest">UI Architecture</h3>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 overflow-x-auto font-mono text-sm">
+          <div className="bg-dark-950 border border-dark-700 p-4 overflow-x-auto font-mono text-sm">
             {renderLayoutTree(layout)}
           </div>
         </div>
@@ -232,16 +215,16 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
 
       {/* Acceptance Criteria */}
       {acceptance_criteria && acceptance_criteria.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-6">
+        <div className="glass-card p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
-            <CheckCircle2 className="w-5 h-5 text-teal-500" />
-            <h3 className="text-lg font-semibold text-slate-800">Acceptance Criteria</h3>
+            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+            <h3 className="text-sm font-bold text-white uppercase tracking-widest">Acceptance Criteria</h3>
           </div>
           <div className="space-y-3">
             {acceptance_criteria.map((criteria, index) => (
-              <div key={index} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <CheckCircle2 className="w-4 h-4 text-teal-500 mt-0.5 flex-shrink-0" />
-                <span className="text-slate-700 text-sm leading-relaxed">{safeRender(criteria)}</span>
+              <div key={index} className="flex items-start gap-3 p-3 bg-dark-950 border border-dark-700">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                <span className="text-gray-300 text-sm leading-relaxed">{safeRender(criteria)}</span>
               </div>
             ))}
           </div>
@@ -250,22 +233,23 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
 
       {/* AI Pipeline Reasoning */}
       {(pipeline || pipelineSteps?.length > 0) && (
-        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/30 border border-slate-100 p-6">
+        <div className="glass-card p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Cpu className="w-5 h-5 text-slate-500" />
-            <h3 className="text-lg font-semibold text-slate-800">AI Pipeline Reasoning</h3>
+            <Cpu className="w-5 h-5 text-neon-green" />
+            <h3 className="text-sm font-bold text-white uppercase tracking-widest">AI Pipeline Reasoning</h3>
           </div>
 
-          {/* Pipeline steps */}
           {pipelineSteps && pipelineSteps.length > 0 && (
             <div className="space-y-2 mb-4">
               {pipelineSteps.map((step, index) => (
-                <div key={index} className="flex items-center gap-3 p-2 bg-slate-50 rounded-lg">
-                  <span className="w-6 h-6 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xs font-bold">
-                    {index + 1}
-                  </span>
-                  <span className="font-medium text-slate-700 text-sm">{step.step}</span>
-                  <span className="ml-auto text-xs text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+                <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-2 bg-dark-950 border border-dark-700">
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <span className="w-6 h-6 bg-neon-green/10 border border-neon-green/40 text-neon-green flex items-center justify-center text-xs font-bold shrink-0">
+                      {index + 1}
+                    </span>
+                    <span className="font-medium text-gray-300 text-sm leading-tight">{step.step}</span>
+                  </div>
+                  <span className="sm:ml-auto text-[10px] text-gray-500 bg-dark-800 border border-dark-600 px-2 py-0.5 uppercase tracking-widest self-start sm:self-auto mt-2 sm:mt-0">
                     {step.result}
                   </span>
                 </div>
@@ -273,11 +257,10 @@ function WorkflowOutput({ content, metadata, features, pipelineSteps }) {
             </div>
           )}
 
-          {/* Generation notes */}
           {pipeline?.generation_notes && (
-            <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <Lightbulb className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-blue-700">{pipeline.generation_notes}</p>
+            <div className="flex items-start gap-2 p-3 bg-neon-cyan/5 border border-neon-cyan/20">
+              <Lightbulb className="w-4 h-4 text-neon-cyan mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-neon-cyan/80">{pipeline.generation_notes}</p>
             </div>
           )}
         </div>

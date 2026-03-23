@@ -3,20 +3,15 @@
  * SECTION 1 — Purpose
  * ============================================================
  * Application header with logo, search bar, notification bell,
- * and profile icon. Displays the current screen name as a badge.
- * The search input fires a toast on Enter, and the profile
- * button navigates to the Profile screen.
+ * and profile icon. Styled for the Dark Developer theme (glassmorphism,
+ * neon green accents).
  * ============================================================
  */
 
-// SECTION 2 — Imports
 import React, { useState } from 'react';
 import { Search as SearchIcon, User, Bell } from 'lucide-react';
 import { usePreviewState } from '../../state/previewState';
 
-// SECTION 3 — Core Logic (none — state comes from context)
-
-// SECTION 4 — Component Implementation
 export default function Header({ title, data, wireframe }) {
   const { state, actions } = usePreviewState();
   const [searchValue, setSearchValue] = useState('');
@@ -24,9 +19,9 @@ export default function Header({ title, data, wireframe }) {
   // ── Wireframe mode ──
   if (wireframe) {
     return (
-      <div className="w-full h-16 border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-between px-4 rounded-lg">
-        <span className="text-slate-400 font-mono text-sm">{title} (Header)</span>
-        <span className="text-slate-300 text-xs">
+      <div className="w-full h-16 border-2 border-dashed border-dark-700 bg-dark-900 flex items-center justify-between px-4 rounded-lg">
+        <span className="text-gray-500 font-mono text-sm">{title} (Header)</span>
+        <span className="text-gray-600 text-xs">
           Children: {Array.isArray(data) ? data.length : Object.keys(data || {}).length}
         </span>
       </div>
@@ -35,22 +30,24 @@ export default function Header({ title, data, wireframe }) {
 
   // ── Real mode ──
   return (
-    <header className="w-full bg-white border-b border-slate-200 px-5 h-16 flex items-center justify-between rounded-t-xl shadow-sm">
+    <header className="w-full bg-dark-900/80 backdrop-blur-xl border-b border-neon-green/20 px-5 h-16 flex items-center justify-between shadow-sm z-40 sticky top-0">
       {/* Logo + title */}
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-md shadow-blue-200">
-          <span className="text-white font-bold text-lg">P</span>
+        <div className="w-8 h-8 bg-neon-green/10 border border-neon-green/40 rounded-lg flex items-center justify-center shadow-md shadow-neon-green/10">
+          <span className="text-neon-green font-bold text-sm font-mono">P</span>
         </div>
-        <span className="font-semibold text-slate-800 text-lg tracking-tight">Prototype</span>
-        <span className="text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-full ml-1">
-          {state.currentScreen}
+        <span className="font-bold text-gray-200 text-lg tracking-tight font-mono">
+          Proto<span className="text-neon-green">-Gen</span>
+        </span>
+        <span className="text-xs text-neon-green/80 font-mono bg-neon-green/10 border border-neon-green/20 px-2 py-0.5 rounded ml-2">
+          {state.currentScreen || 'dashboard'}
         </span>
       </div>
 
       {/* Search */}
-      <div className="flex-1 max-w-sm mx-6 hidden md:block relative">
+      <div className="flex-1 max-w-sm mx-6 hidden md:block relative group">
         <div className="absolute inset-y-0 left-3 flex items-center">
-          <SearchIcon className="w-4 h-4 text-slate-400" />
+          <span className="text-neon-purple font-mono text-sm group-focus-within:text-neon-green transition-colors">$</span>
         </div>
         <input
           type="text"
@@ -58,33 +55,31 @@ export default function Header({ title, data, wireframe }) {
           onChange={(e) => setSearchValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && searchValue.trim()) {
-              actions.showToast(`Searched: "${searchValue}"`);
+              actions.showToast(`> Executed grep: "${searchValue}"`);
               setSearchValue('');
             }
           }}
-          placeholder="Search anything…"
-          className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all duration-300 ease-in-out outline-none"
+          placeholder="grep -r 'search anything...' ./"
+          className="w-full pl-8 pr-4 py-1.5 bg-dark-800/50 border border-dark-700 rounded text-sm text-gray-300 placeholder-gray-600 focus:bg-dark-900 focus:border-neon-green/50 focus:shadow-[0_0_15px_rgba(57,255,20,0.15)] transition-all duration-300 ease-in-out outline-none font-mono"
         />
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <button
-          onClick={(e) => { e.stopPropagation(); actions.showToast('You have 3 new notifications'); }}
-          className="relative w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center hover:bg-slate-100 transition-all duration-200 border border-slate-200"
+          onClick={(e) => { e.stopPropagation(); actions.showToast('> SYSLOG: 3 new alerts'); }}
+          className="relative w-8 h-8 rounded bg-dark-800 flex items-center justify-center hover:bg-dark-700 hover:border-neon-purple/50 transition-all duration-200 border border-dark-700 group"
         >
-          <Bell className="w-4 h-4 text-slate-600" />
-          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
+          <Bell className="w-4 h-4 text-gray-400 group-hover:text-neon-purple transition-colors" />
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-neon-purple rounded-full animate-pulse shadow-[0_0_8px_rgba(191,90,242,0.8)]" />
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); actions.navigate('Profile'); }}
-          className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center hover:from-slate-300 hover:to-slate-400 transition-all duration-200"
+          className="w-8 h-8 rounded bg-dark-800 flex items-center justify-center hover:bg-neon-green/10 hover:border-neon-green/50 border border-dark-700 transition-all duration-200 group"
         >
-          <User className="w-4 h-4 text-slate-600" />
+          <User className="w-4 h-4 text-gray-400 group-hover:text-neon-green transition-colors" />
         </button>
       </div>
     </header>
   );
 }
-
-// SECTION 5 — Export (default export above)

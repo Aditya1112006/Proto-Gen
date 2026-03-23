@@ -1,0 +1,149 @@
+================================================================================
+MINI PROJECT SUBMISSION - AI PROTOTYPE GENERATOR
+================================================================================
+
+--------------------------------------------------------------------------------
+3. PROBLEM STATEMENT
+--------------------------------------------------------------------------------
+
+Building software prototypes from scratch is frustrating and time-consuming,
+especially for non-technical founders, design students, and indie developers
+who have ideas but struggle to translate them into structured requirements and
+working code. We noticed that existing tools either require technical expertise
+(like writing detailed specifications) or produce generic outputs that don't
+capture the specific context of what you're building. When you're iterating
+on an idea, you often end up with scattered notes, lost requirements, and no
+clear way to track how your concept has evolved. There's no easy way to say
+"build a meal-planning app" and immediately get back user flows, acceptance
+criteria, and runnable code that actually matches your vision. We built this
+tool to bridge that gap — turning natural language descriptions into tangible,
+structured prototypes without requiring coding knowledge upfront.
+
+Word Count: ~150 words
+
+
+--------------------------------------------------------------------------------
+4. PREVIOUS WORK / LITERATURE SURVEY
+--------------------------------------------------------------------------------
+
+v0.dev by Vercel — This tool generates UI components from text prompts using
+AI. It's great for quickly getting React code, but it's heavily focused on
+frontend components rather than full product architecture. It doesn't handle
+workflow generation, requirement tracking, or domain-aware context merging
+across multiple prompts.
+
+Figma AI (formerly Diagram) — Figma's AI features help with design suggestions
+and component generation within the design tool. While useful for visual design,
+it doesn't bridge the gap to actual code generation or structured requirement
+documentation. You're still working in the design silo without engineering
+outputs.
+
+GitHub Copilot — Copilot assists with code completion and generation based on
+comments and context. However, it's designed for developers who already know
+what they're building — it doesn't help non-technical users architect a product
+from a vague idea, nor does it generate workflows, acceptance criteria, or
+domain-specific layouts.
+
+ChatGPT/Claude with custom prompts — While powerful, using general-purpose LLMs
+requires crafting detailed prompts and manual session management. There's no
+built-in domain detection, prompt merging logic, or persistent session tracking
+— you lose context when you start a new chat, and the output format varies each
+time.
+
+
+--------------------------------------------------------------------------------
+5. PROPOSED SOLUTION
+--------------------------------------------------------------------------------
+
+We built ProtoGen — an AI-powered prototype generator with a React frontend and
+Node.js/Express backend that uses Google's Gemini API for intelligent
+generation. The system follows a multi-step pipeline: first, our
+featureExtractor.js analyzes the prompt using keyword matching against 10
+predefined domains (food_delivery, ecommerce, social_media, etc.) to extract
+features before any LLM call. Then, domainDetector.js uses Jaccard similarity
+to determine if a new prompt belongs to the same domain as previous prompts —
+if so, it merges them; if not, it triggers a domain change notification. The
+llmService.js handles the actual generation with two modes: "workflow" (for
+architecture specs) and "workflow+code" (which produces runnable HTML/JS files).
+We store session data in MongoDB via Mongoose, tracking prompt history, merged
+requirements, and a change log. The frontend uses React Context
+(PrototypeContext.jsx) for global state management, with Tailwind CSS for
+styling and a live code preview using react-simple-code-editor. Unlike
+existing tools, our solution maintains context across iterations, automatically
+detects when you're switching ideas, and outputs production-ready code with
+pre-defined design palettes.
+
+Word Count: ~180 words
+
+
+--------------------------------------------------------------------------------
+6. TOOLS & TECHNOLOGIES USED
+--------------------------------------------------------------------------------
+
+Tool/Technology          | Why We Used It
+-------------------------|----------------------------------------------------
+React 18                 | For building a responsive, component-based UI with
+                         | hooks for state management
+                         |
+Vite                     | Fast development server and optimized build tooling
+                         |
+Tailwind CSS             | Utility-first CSS framework for rapid, consistent
+                         | styling without writing custom CSS files
+                         |
+React Router DOM         | Client-side navigation between landing page and
+                         | generator interface
+                         |
+Axios                    | HTTP client for making API calls from frontend to
+                         | backend
+                         |
+Lucide React             | Clean, modern icon library for the UI
+                         |
+React Simple Code Editor | For displaying and syntax-highlighting generated
++ PrismJS                | code in the browser
+                         |
+Node.js + Express        | Backend API server to handle prototype generation
+                         | requests and session management
+                         |
+MongoDB + Mongoose       | Persistent storage for session data, prompt history,
+                         | and merged requirements
+                         |
+Google Gemini API        | The LLM that powers the actual prototype generation —
+(@google/genai)          | chosen for its large context window and JSON output
+                         | capabilities
+                         |
+Compromise + Natural     | NLP libraries for keyword extraction and text
+                         | processing in the feature extraction pipeline
+                         |
+CORS                     | Middleware to enable cross-origin requests between
+                         | frontend (localhost:5173) and backend (localhost:5001)
+                         |
+dotenv                   | Environment variable management for API keys and
+                         | configuration
+
+
+--------------------------------------------------------------------------------
+7. IMPACT TO SOCIETY
+--------------------------------------------------------------------------------
+
+This project could genuinely help students and aspiring entrepreneurs who have
+ideas but lack technical backgrounds or the budget to hire developers. Imagine
+a computer science student with a hackathon idea — instead of spending hours
+scaffolding a project, they can describe their concept and get a working
+prototype in minutes. For small startups and indie developers, it reduces the
+barrier to testing ideas quickly without committing weeks to development.
+Someone with no design background can still produce structured, well-thought-
+out prototypes with clear requirements and user flows, making it easier to
+communicate ideas to potential collaborators or investors. We also see value in
+education — students learning software engineering can use this to understand
+how requirements translate into architecture and code. While this won't replace
+professional developers, it democratizes the early stages of product
+development, letting more people participate in building software. In a world
+where technical skills are often gatekeepers to innovation, tools like this
+give more people a seat at the table.
+
+Word Count: ~165 words
+
+
+================================================================================
+END OF DOCUMENT
+================================================================================

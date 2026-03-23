@@ -29,14 +29,9 @@ const allowedOrigins = [...new Set([...envOrigins, ...defaultOrigins])];
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
+    // Allow all requests since this is a hackathon project, 
+    // or if you want to be strict later, put your Vercel URL here checking against origin
+    return callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

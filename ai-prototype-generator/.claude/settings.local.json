@@ -1,13 +1,6 @@
 {
   "permissions": {
     "allow": [
-<<<<<<< HEAD
-      "Read(//d D:/Pratham/Hackathon/ai-prototype-generator/**)",
-      "Bash(npm start:*)",
-      "Bash(curl:*)",
-      "Bash(cd:*)",
-      "Bash(taskkill:*)",
-=======
       "Bash(cd client:*)",
       "Bash(cd server:*)",
       "Bash(curl:*)",
@@ -16,8 +9,9 @@
       "Bash(cd:*)",
       "Bash(node:*)",
       "Bash(echo:*)",
->>>>>>> 84e80a3935a041651c83d7179a72eaaa01ec7b77
-      "Bash(npx kill-port:*)"
+      "Bash(npx kill-port:*)",
+      "Read(//d D:/Pratham/Hackathon/ai-prototype-generator/**)",
+      "Bash(npm start:*)"
     ]
   }
 }

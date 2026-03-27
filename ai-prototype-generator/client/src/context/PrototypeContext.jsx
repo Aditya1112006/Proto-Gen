@@ -36,6 +36,9 @@ export const PrototypeProvider = ({ children }) => {
 
   const [generationStage, setGenerationStage] = useState(null)
 
+  // Session history log (in-memory only, clears on page reload)
+  const [sessionLog, setSessionLog] = useState([])
+
   // Helper for delays
   const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -114,8 +117,8 @@ export const PrototypeProvider = ({ children }) => {
       })
 
       // Domain info
+      const isDomainChanged = data.domainChanged
       if (data.metadata?.domain) {
-        const isDomainChanged = data.domainChanged
         setDomainInfo(prev => ({
           current: data.metadata.domain,
           oldDomain: prev.current,
@@ -133,6 +136,69 @@ export const PrototypeProvider = ({ children }) => {
 
       // Stage 5: Complete
       setGenerationStage("complete")
+
+      // Save/update session in sessionLog
+      // When domain changes: archive the OLD session under a unique ID, then add the new one
+
+      const newSessionEntry = {
+        id: isDomainChanged ? `${data.sessionId}_${Date.now()}` : data.sessionId,
+        title: prompt.length > 60 ? prompt.substring(0, 60) + '...' : prompt,
+        firstPrompt: prompt,
+        timestamp: new Date().toISOString(),
+        prototype: {
+          content: data.content,
+          metadata: {
+            ...data.metadata,
+            files: data.files || data.metadata?.files || []
+          },
+          features: data.features || [],
+          pipelineSteps: data.pipelineSteps || []
+        },
+        promptHistory: isDomainChanged
+          ? [{ text: prompt, timestamp: new Date().toISOString(), domain: data.metadata?.domain || 'general' }]
+          : [
+              ...promptHistory,
+              { text: prompt, timestamp: new Date().toISOString(), domain: data.metadata?.domain || 'general' }
+            ],
+        counters: {
+          totalPrompts: data.metadata?.total_prompt_count || 0,
+          mergedPrompts: data.metadata?.merged_prompt_count || 0
+        },
+        domain: data.metadata?.domain || 'general'
+      }
+
+      setSessionLog(prev => {
+        if (isDomainChanged && currentPrototype) {
+          // Archive the old session as a frozen snapshot before adding the new one
+          const oldExists = prev.some(s => s.id === sessionId)
+          if (!oldExists && sessionId) {
+            const archivedOldSession = {
+              id: sessionId,
+              title: promptHistory.length > 0
+                ? (promptHistory[0].text.length > 60 ? promptHistory[0].text.substring(0, 60) + '...' : promptHistory[0].text)
+                : 'Untitled Session',
+              firstPrompt: promptHistory[0]?.text || '',
+              timestamp: promptHistory[0]?.timestamp || new Date().toISOString(),
+              prototype: { ...currentPrototype },
+              promptHistory: [...promptHistory],
+              counters: { ...counters },
+              domain: domainInfo.current || 'general'
+            }
+            return [...prev, archivedOldSession, newSessionEntry]
+          }
+          // Old already archived, just append new
+          return [...prev, newSessionEntry]
+        }
+
+        // Same domain: update existing entry or append
+        const existingIndex = prev.findIndex(s => s.id === data.sessionId)
+        if (existingIndex >= 0) {
+          const updated = [...prev]
+          updated[existingIndex] = newSessionEntry
+          return updated
+        }
+        return [...prev, newSessionEntry]
+      })
 
     } catch (err) {
 
@@ -197,7 +263,7 @@ export const PrototypeProvider = ({ children }) => {
   }
 
 
-  // CLEAR STATE
+  // CLEAR STATE (archives the current session but does NOT clear sessionLog)
   const clear = async () => {
 
     try {
@@ -238,6 +304,25 @@ export const PrototypeProvider = ({ children }) => {
     setGenerationStage(null)
   }
 
+  // LOAD A PREVIOUS SESSION from sessionLog
+  const loadSession = (id) => {
+    const session = sessionLog.find(s => s.id === id)
+    if (!session) return
+
+    setSessionId(session.id)
+    setCurrentPrototype(session.prototype)
+    setPromptHistory(session.promptHistory || [])
+    setCounters(session.counters || { totalPrompts: 0, mergedPrompts: 0 })
+    setDomainInfo({
+      current: session.domain || null,
+      oldDomain: null,
+      changed: false
+    })
+    setChangeLog([])
+    setError(null)
+    setGenerationStage('complete')
+  }
+
   // Acknowledge domain change (close modal)
   const acknowledgeDomainChange = () => {
     setShowDomainChangeModal(false)
@@ -263,9 +348,12 @@ export const PrototypeProvider = ({ children }) => {
         changeLog,
         generationStage,
         showDomainChangeModal,
+        sessionLog,
+        sessionId,
         generate,
         generateCodeForPrototype,
         clear,
+        loadSession,
         acknowledgeDomainChange,
         getLayout
       }}

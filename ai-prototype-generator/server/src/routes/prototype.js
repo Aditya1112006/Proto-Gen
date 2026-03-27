@@ -49,7 +49,10 @@ router.post('/generate', async (req, res, next) => {
     if (result.error) {
       return res.status(500).json({
         success: false,
-        error: result.message || 'LLM Generation failed mid-process.'
+        error: { 
+          message: result.message || 'LLM Generation failed mid-process.',
+          details: 'llm_generation_error'
+        }
       });
     }
     // Update session with output

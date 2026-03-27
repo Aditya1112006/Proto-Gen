@@ -10,6 +10,7 @@ import CodeOutput from '../components/Output/CodeOutput'
 import GenerateCodeButton from '../components/Output/GenerateCodeButton'
 import GenerationStatus from '../components/GenerationStatus'
 import DomainChangeModal from '../components/Modals/DomainChangeModal'
+import SessionList from '../components/History/SessionList'
 
 function PrototypeGenerator() {
 
@@ -27,9 +28,12 @@ function PrototypeGenerator() {
     changeLog,
     generationStage,
     showDomainChangeModal,
+    sessionLog,
+    sessionId,
     generate,
     generateCodeForPrototype,
     clear,
+    loadSession,
     acknowledgeDomainChange
   } = usePrototypeContext()
 
@@ -112,6 +116,13 @@ function PrototypeGenerator() {
               domainChanged={domainInfo.changed}
             />
 
+            {/* Session History */}
+            <SessionList
+              sessionLog={sessionLog}
+              activeSessionId={sessionId}
+              onLoadSession={loadSession}
+            />
+
             {/* Clear Button */}
             {counters.totalPrompts > 0 && (
               <button
@@ -177,6 +188,16 @@ function PrototypeGenerator() {
               </div>
             )}
 
+            {/* Generate Code (Moved above Workflow Output for visibility) */}
+            {currentPrototype?.content && mode === 'workflow' && (
+              <GenerateCodeButton
+                onGenerate={handleGenerateCode}
+                hasPrototype={!!currentPrototype}
+                disabled={isLoading}
+                files={currentPrototype?.metadata?.files || []}
+              />
+            )}
+
             {/* Workflow Output */}
             {currentPrototype?.content && (
               <WorkflowOutput
@@ -188,16 +209,6 @@ function PrototypeGenerator() {
             )}
 
 
-
-            {/* Generate Code */}
-            {currentPrototype?.content && mode === 'workflow' && (
-              <GenerateCodeButton
-                onGenerate={handleGenerateCode}
-                hasPrototype={!!currentPrototype}
-                disabled={isLoading}
-                files={currentPrototype?.metadata?.files || []}
-              />
-            )}
 
             {/* Code Output */}
             {currentPrototype?.metadata?.files?.length > 0 && (

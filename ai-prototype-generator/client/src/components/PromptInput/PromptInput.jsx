@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Send, Loader2, Code, FileText, AlertCircle } from 'lucide-react'
 
-function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domainChanged = false, oldDomain = null }) {
+function PromptInput({ onSubmit, isLoading, mode, setMode, promptHistory = [], counters = {}, domainChanged = false, oldDomain = null }) {
   const [prompt, setPrompt] = useState('')
   const [showDomainAlert, setShowDomainAlert] = useState(false)
 
@@ -9,10 +9,13 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domain
   useEffect(() => {
     if (domainChanged) {
       setShowDomainAlert(true)
+      if (promptHistory.length > 0) {
+        setPrompt(promptHistory[promptHistory.length - 1].text)
+      }
       const timer = setTimeout(() => setShowDomainAlert(false), 8000)
       return () => clearTimeout(timer)
     }
-  }, [domainChanged])
+  }, [domainChanged, promptHistory])
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -87,8 +90,9 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domain
       )}
 
       {/* Input Area */}
-      <form onSubmit={handleSubmit} className="p-1 relative bg-dark-900/40">
-        <div className="relative flex flex-col sm:block">
+      <form onSubmit={handleSubmit} className="p-1 relative bg-dark-900/60 overflow-hidden">
+        <div className="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none mix-blend-screen"></div>
+        <div className="relative flex flex-col sm:block z-10">
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -102,7 +106,7 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, counters = {}, domain
             <button
               type="submit"
               disabled={!prompt.trim() || isLoading}
-              className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-6 py-2.5 sm:py-2 bg-neon-green text-dark-950 text-xs font-bold uppercase tracking-widest hover:bg-neon-green/90 hover:shadow-[0_0_20px_rgba(57,255,20,0.4)] disabled:opacity-30 disabled:hover:shadow-none disabled:cursor-not-allowed transition-all"
+              className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-6 py-2.5 sm:py-2 bg-neon-green text-dark-950 text-xs font-bold uppercase tracking-widest hover:bg-neon-green/90 hover:shadow-[0_0_25px_rgba(57,255,20,0.6)] disabled:opacity-30 disabled:hover:shadow-none disabled:cursor-not-allowed transition-all duration-300 transform hover:-translate-y-0.5"
             >
               {isLoading ? (
                 <>

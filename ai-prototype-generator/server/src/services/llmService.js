@@ -12,17 +12,10 @@ const ai = new GoogleGenAI({
 
 export class LLMService {
   constructor() {
-    const rawModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const rawModel = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
     const cleanModel = rawModel.trim().toLowerCase();
     
-    // Fallbacks for unavailable models on the v1beta API tier
-    if (cleanModel.includes('1.5-flash')) {
-      this.model = 'gemini-2.5-flash';
-    } else if (cleanModel.includes('-8b')) {
-      this.model = 'gemini-2.0-flash'; // 8b doesn't exist here, fallback to 2.0
-    } else {
-      this.model = cleanModel;
-    }
+    this.model = cleanModel;
     
     this.workflowMaxTokens = 4096;    // Lean for workflow-only
     this.codeMaxTokens = 20000;       // Rich budget for code generation (Gemini Flash supports up to 65k)
@@ -51,15 +44,25 @@ export class LLMService {
       const userContent = formatUserPrompt(prompt, sessionState, mode, extractedFeatures);
 
       // ── Step 3: LLM Generation ──
+      let finalContents = userContent;
+      let finalConfig = {
+        temperature: temperature,
+        maxOutputTokens: maxTokens,
+        responseMimeType: "application/json",
+      };
+
+      // Gemma models do not support the systemInstruction or responseMimeType configuration objects yet
+      if (this.model.includes('gemma')) {
+        delete finalConfig.responseMimeType;
+        finalContents = `[SYSTEM INSTRUCTION]\n${systemPrompt}\n\nIMPORTANT: You must output ONLY RAW VALID JSON. Do not use markdown blocks formatting, do not return conversational text.\n\n[USER INPUT]\n${userContent}`;
+      } else {
+        finalConfig.systemInstruction = systemPrompt;
+      }
+
       const response = await ai.models.generateContent({
         model: this.model,
-        contents: userContent,
-        config: {
-          systemInstruction: systemPrompt,
-          temperature: temperature,
-          maxOutputTokens: maxTokens,
-          responseMimeType: "application/json",
-        }
+        contents: finalContents,
+        config: finalConfig
       });
 
       const responseContent = response.text;
@@ -113,21 +116,37 @@ export class LLMService {
       return {};
     }
 
-    let jsonStr = llmResponse;
+    let jsonStr = llmResponse.trim();
+
+    // Remove markdown codeblock formatting if present
+    if (jsonStr.startsWith('```json')) {
+      jsonStr = jsonStr.substring(7);
+    } else if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.substring(3);
+    }
+    if (jsonStr.endsWith('```')) {
+      jsonStr = jsonStr.substring(0, jsonStr.length - 3);
+    }
+    
+    jsonStr = jsonStr.trim();
 
     try {
       // 1. Basic extraction: grab everything from first { to last }
-      const start = llmResponse.indexOf('{');
-      const end = llmResponse.lastIndexOf('}');
-      if (start !== -1 && end !== -1) {
-        jsonStr = llmResponse.substring(start, end + 1);
-        return JSON.parse(jsonStr);
+      const start = jsonStr.indexOf('{');
+      const end = jsonStr.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && start < end) {
+        const potentialJson = jsonStr.substring(start, end + 1);
+        try {
+          return JSON.parse(potentialJson);
+        } catch (e) {
+          // If substring parse fails, fallback to full string parse attempt
+        }
       }
-      return JSON.parse(llmResponse);
+      return JSON.parse(jsonStr);
     } catch (e) {
       // 2. Repair Truncated JSON
       // If the string was cut off mid-way, attempt to close open brackets/braces.
-      console.warn('Initial JSON parse failed, attempting to repair truncated JSON...');
+      console.warn('Initial JSON parse failed, attempting to repair truncated JSON:', e.message);
       let repairedStr = jsonStr;
       
       // Auto-append missing double quotes if the string ended inside one
@@ -139,7 +158,6 @@ export class LLMService {
       }
 
       // Brute force close arrays and objects. 
-      // Very basic heuristic: just stack closing braces until it parses.
       const maxAttempts = 15;
       for (let i = 0; i < maxAttempts; i++) {
         try {
@@ -147,20 +165,19 @@ export class LLMService {
         } catch (repairError) {
           const msg = repairError.message;
           if (msg.includes('Expected') || msg.includes('Unexpected end of JSON input') || msg.includes('Unterminated')) {
-             if (repairedStr.lastIndexOf('[') > repairedStr.lastIndexOf(']')) {
+             if (repairedStr.lastIndexOf('[') > repairedStr.lastIndexOf('{')) {
                repairedStr += ']';
              } else {
                repairedStr += '}';
              }
           } else {
              // If it's a completely invalid token mid-word, chop off the last character and try again 
-             // (e.g. cutting off mid-word "const app = new Vue...")
              repairedStr = repairedStr.slice(0, -1);
           }
         }
       }
 
-      console.error('Failed to parse or repair LLM response as JSON. End snippet:', llmResponse.substring(Math.max(0, llmResponse.length - 200)));
+      console.error('Failed to parse or repair LLM response as JSON. Snippet:', llmResponse.substring(0, 100) + '...', '... End snippet:', llmResponse.substring(Math.max(0, llmResponse.length - 100)));
       return {};
     }
   }
@@ -179,15 +196,24 @@ export class LLMService {
     const systemPrompt = 'You are a validation assistant. Check if the user prompt is specific enough to generate a prototype. Respond with JSON: { "isValid": true/false, "suggestion": "string or null" }';
 
     try {
+      let finalContents = `Validate this prompt: "${userPrompt}"`;
+      let finalConfig = {
+        temperature: 0.3,
+        maxOutputTokens: 200,
+        responseMimeType: "application/json",
+      };
+
+      if (this.model.includes('gemma')) {
+        delete finalConfig.responseMimeType;
+        finalContents = `[SYSTEM INSTRUCTION]\n${systemPrompt}\n\nIMPORTANT: You must output ONLY RAW VALID JSON. Do not use markdown blocks formatting, do not return conversational text.\n\n[USER INPUT]\n${finalContents}`;
+      } else {
+        finalConfig.systemInstruction = systemPrompt;
+      }
+
       const response = await ai.models.generateContent({
         model: this.model,
-        contents: `Validate this prompt: "${userPrompt}"`,
-        config: {
-          systemInstruction: systemPrompt,
-          temperature: 0.3,
-          maxOutputTokens: 200,
-          responseMimeType: "application/json",
-        }
+        contents: finalContents,
+        config: finalConfig
       });
 
       return JSON.parse(response.text);

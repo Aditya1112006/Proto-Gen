@@ -1,4 +1,6 @@
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useState, useEffect } from "react"
+import { generatePrototype, generateCode as generateCodeApi, clearSession as clearSessionApi, getSession as getSessionApi, getHistory } from "../services/api"
+import { useAuthContext } from './AuthContext'
 import sampleLayout from '../data/sampleLayout.json'
 
 const PrototypeContext = createContext()
@@ -8,8 +10,7 @@ export const usePrototypeContext = () => {
 }
 
 export const PrototypeProvider = ({ children }) => {
-
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5001"
+  const { user } = useAuthContext()
 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -36,8 +37,43 @@ export const PrototypeProvider = ({ children }) => {
 
   const [generationStage, setGenerationStage] = useState(null)
 
-  // Session history log (in-memory only, clears on page reload)
+  // Session history log
   const [sessionLog, setSessionLog] = useState([])
+
+  // Fetch history on load if authenticated
+  useEffect(() => {
+    const fetchHistory = async () => {
+      if (user) {
+        try {
+          const data = await getHistory();
+          if (data.success && data.history) {
+            // Map the summary objects to match the shape expected by SessionList
+            const loadedHistory = data.history.map(item => ({
+              id: item.sessionId,
+              title: item.title,
+              firstPrompt: item.preview || item.title,
+              timestamp: item.updatedAt || item.createdAt,
+              domain: item.domain,
+              // We don't have the full prototype tree yet; it will be lazy-loaded in loadSession
+            }));
+            
+            // To prevent overwriting immediately generated local, we append API history beneath any local sessions currently in memory (rare edge case)
+            setSessionLog(prev => {
+              const existingIds = new Set(prev.map(s => s.id));
+              const missingHistory = loadedHistory.filter(s => !existingIds.has(s.id));
+              return [...prev, ...missingHistory];
+            });
+          }
+        } catch (e) {
+          console.error("Failed to load user history:", e);
+        }
+      } else {
+        // Clear history on logout
+        setSessionLog([]);
+      }
+    };
+    fetchHistory();
+  }, [user]);
 
   // Helper for delays
   const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms))
@@ -63,23 +99,16 @@ export const PrototypeProvider = ({ children }) => {
       // Stage 3: Generating
       setGenerationStage("generating")
 
-      const response = await fetch(`${API_URL}/api/prototype/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          prompt,
-          mode,
-          sessionId
-        })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
-        const errMsg = typeof data.error === 'string' ? data.error : data.error?.message;
+      let data;
+      try {
+        data = await generatePrototype(prompt, mode, sessionId);
+      } catch (e) {
+        const errMsg = e.response?.data?.error?.message || e.message;
         throw new Error(errMsg || "Generation failed")
+      }
+
+      if (!data.success) {
+        throw new Error(data.error?.message || "Generation failed")
       }
 
       // Stage 4: Validating
@@ -224,19 +253,14 @@ export const PrototypeProvider = ({ children }) => {
       setIsLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_URL}/api/prototype/code`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          sessionId
-        })
-      })
+      let data;
+      try {
+        data = await generateCodeApi(sessionId);
+      } catch (e) {
+        throw new Error(e.response?.data?.error?.message || "Code generation failed")
+      }
 
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error?.message || "Code generation failed")
       }
 
@@ -268,15 +292,7 @@ export const PrototypeProvider = ({ children }) => {
 
     try {
 
-      await fetch(`${API_URL}/api/prototype/clear`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          sessionId
-        })
-      })
+      await clearSessionApi(sessionId);
 
     } catch (err) {
       console.error("Clear session error:", err)
@@ -304,9 +320,38 @@ export const PrototypeProvider = ({ children }) => {
     setGenerationStage(null)
   }
 
-  // LOAD A PREVIOUS SESSION from sessionLog
-  const loadSession = (id) => {
-    const session = sessionLog.find(s => s.id === id)
+  // LOAD A PREVIOUS SESSION from sessionLog or API
+  const loadSession = async (id) => {
+    let session = sessionLog.find(s => s.id === id)
+    
+    // If not in memory or just a summary from history fetch, try to fetch full data from API
+    if (!session || !session.prototype) {
+      try {
+        setIsLoading(true);
+        const data = await getSessionApi(id);
+        if (data.success) {
+          session = {
+            ...session,
+            id: data.sessionId,
+            title: data.title || 'Untitled Prototype',
+            prototype: data.lastOutput,
+            domain: data.domain || data.lastOutput?.metadata?.domain || 'general',
+            promptHistory: data.prompts || [],
+            counters: { 
+              totalPrompts: data.totalPromptCount || 0, 
+              mergedPrompts: data.mergedPromptCount || 0 
+            }
+          };
+          // Also update it in sessionLog so we don't fetch it again
+          setSessionLog(prev => prev.map(s => s.id === id ? session : s));
+        }
+      } catch (e) {
+        console.error("Failed to fetch session:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
     if (!session) return
 
     setSessionId(session.id)

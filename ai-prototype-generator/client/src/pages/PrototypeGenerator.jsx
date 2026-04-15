@@ -14,7 +14,6 @@ import SessionList from '../components/History/SessionList'
 
 function PrototypeGenerator() {
 
-  const [mode, setMode] = useState('workflow')
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -39,19 +38,21 @@ function PrototypeGenerator() {
 
   const handleSubmit = async (prompt) => {
     if (!prompt) return
-    await generate(prompt, mode)
+    await generate(prompt, 'workflow')
   }
 
   useEffect(() => {
-    if (location.state?.initialPrompt) {
-      const initialPrompt = location.state.initialPrompt;
-      // Clear state so it doesn't re-trigger on hot reload or plain reload
+    if (location.state?.loadSessionId) {
+      loadSession(location.state.loadSessionId);
+      // Clear state so it doesn't re-trigger on hot reload
       navigate(location.pathname, { replace: true, state: {} });
-      // Trigger submission
+    } else if (location.state?.initialPrompt) {
+      const initialPrompt = location.state.initialPrompt;
+      navigate(location.pathname, { replace: true, state: {} });
       handleSubmit(initialPrompt);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state?.initialPrompt]);
+  }, [location.state]);
 
   const handleGenerateCode = async () => {
     await generateCodeForPrototype()
@@ -90,8 +91,6 @@ function PrototypeGenerator() {
             <PromptInput
               onSubmit={handleSubmit}
               isLoading={isLoading}
-              mode={mode}
-              setMode={setMode}
               promptHistory={promptHistory}
               counters={counters}
               domainChanged={domainInfo.changed}
@@ -189,7 +188,7 @@ function PrototypeGenerator() {
             )}
 
             {/* Generate Code (Moved above Workflow Output for visibility) */}
-            {currentPrototype?.content && mode === 'workflow' && (
+            {currentPrototype?.content && (
               <GenerateCodeButton
                 onGenerate={handleGenerateCode}
                 hasPrototype={!!currentPrototype}

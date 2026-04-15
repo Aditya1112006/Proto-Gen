@@ -75,8 +75,15 @@ export class DomainDetector {
 
     for (const [domain, domainWords] of Object.entries(this.domainKeywords)) {
       const matches = keywords.filter(k => domainWords.includes(k)).length;
-      const score = matches / domainWords.length;
-      if (score > bestScore) {
+      
+      // 1. Percentage of user's core keywords that belong to this domain
+      const userMatchPct = keywords.length > 0 ? (matches / keywords.length) : 0;
+      // 2. Strong absolute signal: 2+ keyword matches strongly implies the domain Regardless of prompt length
+      const absoluteScore = matches >= 2 ? 0.4 + (matches * 0.1) : 0;
+      
+      const score = Math.max(userMatchPct, absoluteScore);
+
+      if (score > bestScore && score >= this.threshold) {
         bestScore = score;
         bestDomain = domain;
       }
@@ -143,7 +150,7 @@ export class DomainDetector {
       const newDomainNormalized = newDomainInference.name.toLowerCase().replace(/\s+/g, '_');
 
       const hasModifyIntent = /\b(add|change|update|modify|improve|fix|remove|tweak|adjust)\b/i.test(prompt);
-      const isDifferentDomain = newDomainNormalized !== currentDomainNormalized && newDomainInference.score > 0.05;
+      const isDifferentDomain = newDomainNormalized !== currentDomainNormalized;
       const isLowOverlap = similarity < 0.15;
 
       console.log('New keywords:', newKeywords);
@@ -188,41 +195,54 @@ export class DomainDetector {
    * Fallback LLM-based domain detection (For first prompt)
    */
   async detectWithLLM(prompt) {
-    try {
-      const rawModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-      const cleanModel = rawModel.trim().toLowerCase();
-      let model = cleanModel;
-      
-      if (cleanModel.includes('1.5-flash')) {
-        model = 'gemini-2.5-flash';
-      } else if (cleanModel.includes('-8b')) {
-        model = 'gemini-2.0-flash';
-      }
-      
-      const systemInstruction = 'You are a domain classifier. Given a user prompt, classify it into one of these domains: food_delivery, ecommerce, social_media, finance, health_fitness, education, productivity, entertainment, travel, real_estate, or general. Respond with JSON: { "domain": "domain_name", "confidence": 0.0-1.0 }';
+    // Use lightweight models for domain classification to preserve quota on heavier models
+    const classificationModels = [
+      'gemini-2.0-flash-lite',
+      'gemini-flash-lite-latest',
+      'gemini-2.5-flash',
+    ];
 
-      const response = await ai.models.generateContent({
-        model,
-        contents: `Classify this prompt: "${prompt}"`,
-        config: {
-          systemInstruction,
-          temperature: 0.2,
-          maxOutputTokens: 100,
-          responseMimeType: "application/json",
+    const systemInstruction = 'You are a domain classifier. Given a user prompt, classify it into one of these domains: food_delivery, ecommerce, social_media, finance, health_fitness, education, productivity, entertainment, travel, real_estate, or general. Respond with JSON: { "domain": "domain_name", "confidence": 0.0-1.0 }';
+
+    for (const model of classificationModels) {
+      try {
+        console.log(`[DomainDetector] Classifying with model: ${model}`);
+        const response = await ai.models.generateContent({
+          model,
+          contents: `Classify this prompt: "${prompt}"`,
+          config: {
+            systemInstruction,
+            temperature: 0.2,
+            maxOutputTokens: 100,
+            responseMimeType: "application/json",
+          }
+        });
+
+        const responseText = response.text;
+        const jsonStr = responseText.substring(responseText.indexOf('{'), responseText.lastIndexOf('}') + 1);
+        const result = JSON.parse(jsonStr || responseText);
+        return {
+          domain: result.domain || 'general',
+          score: result.confidence || 0.5
+        };
+      } catch (error) {
+        const isRetryable = error.message?.includes('429')
+          || error.message?.includes('503')
+          || error.message?.includes('RESOURCE_EXHAUSTED')
+          || error.message?.includes('404')
+          || error.message?.includes('not found')
+          || error.message?.includes('NOT_FOUND');
+
+        if (isRetryable) {
+          console.warn(`[DomainDetector] ⚠ Model ${model} overloaded, trying next...`);
+          continue;
         }
-      });
-
-      const responseText = response.text;
-      const jsonStr = responseText.substring(responseText.indexOf('{'), responseText.lastIndexOf('}') + 1);
-      const result = JSON.parse(jsonStr || responseText);
-      return {
-        domain: result.domain || 'general',
-        score: result.confidence || 0.5
-      };
-    } catch (error) {
-      console.error('LLM domain detection error:', error);
-      return { domain: 'general', score: 0.5 };
+        console.error(`[DomainDetector] LLM domain detection error (${model}):`, error.message);
+        break; // Non-retryable error, fall through to default
+      }
     }
+
+    return { domain: 'general', score: 0.5 };
   }
 }
 

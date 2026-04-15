@@ -10,17 +10,96 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY
 });
 
+// ── Fallback Model Queue ──
+// Ordered by priority. If Model 1 fails (429/503), we seamlessly try Model 2, etc.
+const FALLBACK_MODELS = [
+  process.env.GEMINI_MODEL?.trim().toLowerCase() || 'gemini-2.5-flash',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-flash-lite-latest',
+];
+
+// Errors that should trigger a fallback retry (including 404 to skip non-existent models)
+const RETRYABLE_STATUS_CODES = [429, 503, 500, 404];
+
 export class LLMService {
   constructor() {
-    const rawModel = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-    const cleanModel = rawModel.trim().toLowerCase();
+    this.models = [...new Set(FALLBACK_MODELS)]; // Deduplicate
+    this.primaryModel = this.models[0];
     
-    this.model = cleanModel;
-    
-    this.workflowMaxTokens = 4096;    // Lean for workflow-only
-    this.codeMaxTokens = 20000;       // Rich budget for code generation (Gemini Flash supports up to 65k)
-    this.workflowTemperature = 0.25;   // Deterministic for architecture
-    this.codeTemperature = 0.4;      // Slightly creative for code
+    this.workflowMaxTokens = 4096;
+    this.codeMaxTokens = 20000;  // Gemini free-tier hard cap — prevents JSON truncation
+    this.workflowTemperature = 0.25;
+    this.codeTemperature = 0.4;
+
+    console.log(`[LLMService] Model fallback chain: ${this.models.join(' → ')}`);
+  }
+
+  /**
+   * Core fallback wrapper. Tries each model in the queue until one succeeds.
+   * @param {string} contents - The prompt contents
+   * @param {object} config - Generation config (temperature, maxOutputTokens, etc.)
+   * @param {string[]} modelQueue - Optional override of the model queue
+   * @returns {object} The generation response
+   */
+  async callWithFallback(contents, config, modelQueue = null) {
+    const models = modelQueue || this.models;
+    let lastError = null;
+
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i];
+      try {
+        console.log(`[LLMService] Attempting generation with model: ${model}${i > 0 ? ' (fallback)' : ''}`);
+
+        // Gemma models need special handling
+        let finalContents = contents;
+        let finalConfig = { ...config };
+        if (model.includes('gemma')) {
+          delete finalConfig.responseMimeType;
+          if (finalConfig.systemInstruction) {
+            finalContents = `[SYSTEM INSTRUCTION]\n${finalConfig.systemInstruction}\n\nIMPORTANT: You must output ONLY RAW VALID JSON.\n\n[USER INPUT]\n${contents}`;
+            delete finalConfig.systemInstruction;
+          }
+        }
+
+        const response = await ai.models.generateContent({
+          model,
+          contents: finalContents,
+          config: finalConfig
+        });
+
+        if (i > 0) {
+          console.log(`[LLMService] ✓ Fallback to ${model} succeeded.`);
+        }
+        return response;
+
+      } catch (error) {
+        lastError = error;
+        
+        // Sometimes error objects bury the status code depending on the SDK version
+        const status = error?.status || error?.httpStatusCode || error?.code || error?.response?.status;
+        const errMsg = (error?.message || '').toLowerCase();
+        
+        const isRetryable = RETRYABLE_STATUS_CODES.includes(status)
+          || errMsg.includes('429')
+          || errMsg.includes('503')
+          || errMsg.includes('overloaded')
+          || errMsg.includes('resource_exhausted')
+          || errMsg.includes('404')
+          || errMsg.includes('not found');
+
+        if (isRetryable && i < models.length - 1) {
+          console.warn(`[LLMService] ⚠ Model ${model} failed (${status || errMsg}). Falling back to ${models[i + 1]}...`);
+          continue; // Try next model
+        }
+
+        // Non-retryable error or last model in queue — throw
+        throw error;
+      }
+    }
+
+    throw lastError; // Should never reach here, but safety net
   }
 
   /**
@@ -43,27 +122,15 @@ export class LLMService {
 
       const userContent = formatUserPrompt(prompt, sessionState, mode, extractedFeatures);
 
-      // ── Step 3: LLM Generation ──
-      let finalContents = userContent;
-      let finalConfig = {
+      // ── Step 3: LLM Generation (with multi-model fallback) ──
+      const genConfig = {
         temperature: temperature,
         maxOutputTokens: maxTokens,
         responseMimeType: "application/json",
+        systemInstruction: systemPrompt,
       };
 
-      // Gemma models do not support the systemInstruction or responseMimeType configuration objects yet
-      if (this.model.includes('gemma')) {
-        delete finalConfig.responseMimeType;
-        finalContents = `[SYSTEM INSTRUCTION]\n${systemPrompt}\n\nIMPORTANT: You must output ONLY RAW VALID JSON. Do not use markdown blocks formatting, do not return conversational text.\n\n[USER INPUT]\n${userContent}`;
-      } else {
-        finalConfig.systemInstruction = systemPrompt;
-      }
-
-      const response = await ai.models.generateContent({
-        model: this.model,
-        contents: finalContents,
-        config: finalConfig
-      });
+      const response = await this.callWithFallback(userContent, genConfig);
 
       const responseContent = response.text;
       const parsed = this.parseResponse(responseContent);
@@ -193,28 +260,22 @@ export class LLMService {
    * Check if a prompt is too vague
    */
   async validatePrompt(userPrompt) {
-    const systemPrompt = 'You are a validation assistant. Check if the user prompt is specific enough to generate a prototype. Respond with JSON: { "isValid": true/false, "suggestion": "string or null" }';
+    const sysPrompt = 'You are a validation assistant. Check if the user prompt is specific enough to generate a prototype. Respond with JSON: { "isValid": true/false, "suggestion": "string or null" }';
 
     try {
-      let finalContents = `Validate this prompt: "${userPrompt}"`;
-      let finalConfig = {
-        temperature: 0.3,
-        maxOutputTokens: 200,
-        responseMimeType: "application/json",
-      };
+      // Use the lightest model for validation to conserve quota on the primary model
+      const lightModels = ['gemini-2.0-flash-lite', 'gemini-flash-lite-latest', ...this.models];
 
-      if (this.model.includes('gemma')) {
-        delete finalConfig.responseMimeType;
-        finalContents = `[SYSTEM INSTRUCTION]\n${systemPrompt}\n\nIMPORTANT: You must output ONLY RAW VALID JSON. Do not use markdown blocks formatting, do not return conversational text.\n\n[USER INPUT]\n${finalContents}`;
-      } else {
-        finalConfig.systemInstruction = systemPrompt;
-      }
-
-      const response = await ai.models.generateContent({
-        model: this.model,
-        contents: finalContents,
-        config: finalConfig
-      });
+      const response = await this.callWithFallback(
+        `Validate this prompt: "${userPrompt}"`,
+        {
+          temperature: 0.3,
+          maxOutputTokens: 200,
+          responseMimeType: "application/json",
+          systemInstruction: sysPrompt,
+        },
+        [...new Set(lightModels)] // deduplicated light-first queue
+      );
 
       return JSON.parse(response.text);
     } catch (error) {

@@ -71,22 +71,45 @@ export class FeatureExtractor {
   extract(prompt, sessionContext = null) {
     const words = this.tokenize(prompt);
 
-    // 1. Detect domain
+    // 1. Determine domain
     let bestDomain = 'general';
-    let bestScore = 0;
+    let hasKnownDomain = false;
+    
+    // We already reliably detected the domain in the previous pipeline step via domainDetector.js
+    // Re-use it instead of naively recalculating!
+    if (sessionContext && sessionContext.domain) {
+      // Normalize format just in case (e.g. "Food Delivery" -> "food_delivery")
+      const normalized = sessionContext.domain.toLowerCase().replace(/\s+/g, '_');
+      if (this.domainFeatures[normalized]) {
+        bestDomain = normalized;
+        hasKnownDomain = true;
+      }
+    }
 
-    for (const [domain, config] of Object.entries(this.domainFeatures)) {
-      const matches = words.filter(w => config.keywords.some(kw => w.includes(kw) || kw.includes(w)));
-      const score = matches.length / config.keywords.length;
-      if (score > bestScore) {
-        bestScore = score;
-        bestDomain = domain;
+    // Only fallback to heuristic if the route didn't provide a context
+    let bestScore = hasKnownDomain ? 1 : 0; // If known domain, pretend perfect score to extract features
+    
+    if (!hasKnownDomain) {
+      const CONFIDENCE_THRESHOLD = 0.25;
+
+      for (const [domain, config] of Object.entries(this.domainFeatures)) {
+        const matches = words.filter(w => config.keywords.some(kw => w.includes(kw) || kw.includes(w)));
+        
+        const userMatchPct = words.length > 0 ? (matches.length / words.length) : 0;
+        const absoluteScore = matches.length >= 2 ? 0.4 + (matches.length * 0.1) : 0;
+        
+        const score = Math.max(userMatchPct, absoluteScore);
+
+        if (score > bestScore && score >= CONFIDENCE_THRESHOLD) {
+          bestScore = score;
+          bestDomain = domain;
+        }
       }
     }
 
     // 2. Extract domain-specific features
     let features = [];
-    if (bestDomain !== 'general' && bestScore > 0) {
+    if (bestDomain !== 'general') {
       const domainConfig = this.domainFeatures[bestDomain];
       // Add features that match keywords found in the prompt
       features = domainConfig.features.filter((feature, index) => {

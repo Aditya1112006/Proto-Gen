@@ -9,6 +9,30 @@ const api = axios.create({
   }
 })
 
+// Add auth token to requests if available
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// Handle token expiration
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && error.response?.data?.error?.details === 'token_expired') {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 // Generate prototype from prompt
 export async function generatePrototype(prompt, mode, sessionId) {
   const response = await api.post('/prototype/generate', {
@@ -46,6 +70,28 @@ export async function validatePrompt(prompt) {
   const response = await api.post('/prototype/validate', {
     prompt
   })
+  return response.data
+}
+
+// Get user prototype history
+export async function getHistory() {
+  const response = await api.get('/prototype/history')
+  return response.data
+}
+
+// Authentication
+export async function login(email, password) {
+  const response = await api.post('/auth/login', { email, password })
+  return response.data
+}
+
+export async function register(name, email, password) {
+  const response = await api.post('/auth/register', { name, email, password })
+  return response.data
+}
+
+export async function fetchMe() {
+  const response = await api.get('/auth/me')
   return response.data
 }
 

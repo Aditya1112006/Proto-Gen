@@ -3,6 +3,9 @@ import { randomUUID } from 'crypto';
 import llmService from '../services/llmService.js';
 import domainDetector from '../services/domainDetector.js';
 import promptMerger from '../services/promptMerger.js';
+import { optionalAuth, requireAuth } from '../middleware/authMiddleware.js';
+import Session from '../models/Session.js';
+import User from '../models/User.js';
 
 const router = express.Router();
 
@@ -10,7 +13,7 @@ const router = express.Router();
  * POST /api/prototype/generate
  * Multi-step pipeline: Domain Detection → Feature Extraction → LLM Generation → Validation
  */
-router.post('/generate', async (req, res, next) => {
+router.post('/generate', optionalAuth, async (req, res, next) => {
   try {
     const { prompt, mode = 'workflow', sessionId } = req.body;
 
@@ -58,9 +61,13 @@ router.post('/generate', async (req, res, next) => {
     // Update session with output
     await promptMerger.updateWithOutput(session, result);
 
-    // Update session features from extraction
-    if (result.extractedFeatures?.features) {
-      // We can fetch updated context if needed, or pass extracted features back directly
+    // Link session to user (if authenticated)
+    if (req.user) {
+      await Session.findOneAndUpdate(
+        { sessionId: session },
+        { userId: req.user._id },
+        { new: true }
+      );
     }
 
     // Content and metadata are already validated by the pipeline
@@ -209,6 +216,32 @@ router.post('/code', async (req, res, next) => {
       pipelineSteps: result.pipelineSteps || [],
       files: result.files || metadata.files || []
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/prototype/history — Fetch saved prototypes for the logged-in user
+ */
+router.get('/history', requireAuth, async (req, res, next) => {
+  try {
+    const sessions = await Session.find({ userId: req.user._id })
+      .select('sessionId title domain lastOutput createdAt updatedAt')
+      .sort({ updatedAt: -1 })
+      .limit(50);
+
+    const history = sessions.map(s => ({
+      sessionId: s.sessionId,
+      title: s.title || 'Untitled Prototype',
+      domain: s.domain || 'general',
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+      preview: s.lastOutput?.content?.summary || null,
+      hasCode: !!(s.lastOutput?.files?.length > 0 || s.lastOutput?.metadata?.files?.length > 0),
+    }));
+
+    res.json({ success: true, history });
   } catch (error) {
     next(error);
   }

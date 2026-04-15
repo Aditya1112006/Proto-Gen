@@ -1,9 +1,9 @@
 const STEPS = [
-  { key: "detecting",  short: "Domain",    icon: "◈" },
-  { key: "extracting", short: "Features",  icon: "◉" },
-  { key: "generating", short: "Generating",icon: "◎" },
-  { key: "validating", short: "Validating",icon: "◑" },
-  { key: "complete",   short: "Complete",  icon: "✦" },
+  { key: "detecting", short: "Domain", icon: "◈" },
+  { key: "extracting", short: "Features", icon: "◉" },
+  { key: "generating", short: "Generating", icon: "◎" },
+  { key: "validating", short: "Validating", icon: "◑" },
+  { key: "complete", short: "Complete", icon: "✦" },
 ]
 
 function GenerationStatus({ stage }) {
@@ -34,9 +34,9 @@ function GenerationStatus({ stage }) {
       {/* Stepper Row */}
       <div className="flex items-center w-full">
         {STEPS.map((step, index) => {
-          const isActive   = step.key === stage
+          const isActive = step.key === stage
           const isComplete = currentIndex > index && !isError
-          const isPending  = !isActive && !isComplete
+          const isPending = !isActive && !isComplete
 
           return (
             <div key={step.key} className="flex items-center flex-1 min-w-0">
@@ -48,8 +48,8 @@ function GenerationStatus({ stage }) {
                   ${isActive
                     ? 'bg-neon-cyan/10 text-neon-cyan border-neon-cyan/50 shadow-[0_0_14px_rgba(0,240,255,0.25)] animate-pulse-slow'
                     : isComplete
-                    ? 'bg-neon-green/10 text-neon-green border-neon-green/25'
-                    : 'text-dark-600 border-dark-700 bg-transparent'}
+                      ? 'bg-neon-green/10 text-neon-green border-neon-green/25'
+                      : 'text-dark-600 border-dark-700 bg-transparent'}
                 `}
               >
                 <span className={`text-[10px] ${isActive ? 'animate-spin-slow' : ''}`}>
@@ -62,9 +62,8 @@ function GenerationStatus({ stage }) {
               {index < STEPS.length - 1 && (
                 <div className="flex-1 mx-1 min-w-[8px] h-px bg-dark-700">
                   <div
-                    className={`h-full transition-all duration-700 ${
-                      isComplete ? 'bg-neon-green/50 w-full' : 'w-0'
-                    }`}
+                    className={`h-full transition-all duration-700 ${isComplete ? 'bg-neon-green/50 w-full' : 'w-0'
+                      }`}
                   />
                 </div>
               )}

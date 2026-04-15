@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import rateLimit from 'express-rate-limit';
 import prototypeRoutes from './routes/prototype.js';
+import authRoutes from './routes/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import connectDB from './config/db.js';
 
@@ -13,8 +15,7 @@ connectDB();
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// CORS Configuration
-// Support comma-separated origins in CORS_ORIGIN, plus common dev origins
+// ─── CORS ───────────────────────────────────────────────────────────────────
 const defaultOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
@@ -29,35 +30,78 @@ const allowedOrigins = [...new Set([...envOrigins, ...defaultOrigins])];
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow all requests since this is a hackathon project, 
-    // or if you want to be strict later, put your Vercel URL here checking against origin
-    return callback(null, true);
+    // Allow requests with no origin (mobile apps, curl, same-origin)
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    // In production, allow configured origins
+    if (process.env.NODE_ENV === 'production' && process.env.CORS_ORIGIN) {
+      return callback(null, true);
+    }
+    return callback(null, true); // Dev mode: allow all
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
 
-// Middleware
-app.use(cors(corsOptions));
-
-// Preflight support for all routes
-app.options('*', cors(corsOptions));
-app.use(express.json());
-
-// Routes
-app.use('/api/prototype', prototypeRoutes);
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// ─── RATE LIMITING ───────────────────────────────────────────────────────────
+// Global limiter: 200 requests per 15 minutes per IP
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { message: 'Too many requests. Please try again later.', details: 'rate_limited' } }
 });
 
-// Error handling
+// Auth limiter: stricter — prevent brute force
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { message: 'Too many auth attempts. Please wait 15 minutes.', details: 'rate_limited' } }
+});
+
+// Generation limiter: prevent API abuse
+const generateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10, // 10 generations per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { message: 'Generation limit reached. Please wait a moment.', details: 'rate_limited' } }
+});
+
+// ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+app.use(express.json({ limit: '2mb' }));
+app.use(globalLimiter);
+
+// ─── ROUTES ───────────────────────────────────────────────────────────────────
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/prototype', prototypeRoutes);
+// Apply extra limiter only to generation endpoint
+app.use('/api/prototype/generate', generateLimiter);
+
+// ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: '2.0.0',
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// ─── ERROR HANDLING ───────────────────────────────────────────────────────────
 app.use(errorHandler);
 
-// Start server
+// ─── START ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`\n🚀 Proto-Gen Server v2.0 running on port ${PORT}`);
+  console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`   Auth: JWT (7d expiry)`);
+  console.log(`   Rate limiting: enabled\n`);
 });

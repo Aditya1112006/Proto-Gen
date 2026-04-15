@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Send, Loader2, Code, FileText, AlertCircle } from 'lucide-react'
 
-function PromptInput({ onSubmit, isLoading, mode, setMode, promptHistory = [], counters = {}, domainChanged = false, oldDomain = null }) {
+function PromptInput({ onSubmit, isLoading, promptHistory = [], counters = {}, domainChanged = false, oldDomain = null }) {
   const [prompt, setPrompt] = useState('')
   const [showDomainAlert, setShowDomainAlert] = useState(false)
 
@@ -20,7 +20,7 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, promptHistory = [], c
   const handleSubmit = (e) => {
     e.preventDefault()
     if (prompt.trim() && !isLoading) {
-      onSubmit(prompt.trim(), mode)
+      onSubmit(prompt.trim())
       setPrompt('')
     }
   }
@@ -50,33 +50,7 @@ function PromptInput({ onSubmit, isLoading, mode, setMode, promptHistory = [], c
         </div>
       )}
 
-      {/* Mode Toggle */}
-      <div className="flex flex-col sm:flex-row border-b border-dark-700 bg-dark-900/50">
-        <button
-          type="button"
-          onClick={() => setMode('workflow')}
-          className={`flex-1 flex items-center justify-center gap-2 px-2 sm:px-4 py-3 sm:py-4 min-h-[44px] text-xs sm:text-sm font-bold uppercase tracking-wider transition-all border-b-2 sm:border-b-2 sm:border-r border-dark-700
-              ${mode === 'workflow'
-              ? 'bg-neon-purple/10 text-neon-purple sm:border-b-neon-purple shadow-[inset_0_-2px_10px_rgba(191,90,242,0.2)]'
-              : 'text-gray-500 hover:text-gray-300 border-transparent hover:bg-dark-800'
-            }`}
-        >
-          <FileText className="w-4 h-4" />
-          Workflow Only
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode('workflow+code')}
-          className={`flex-1 flex items-center justify-center gap-2 px-2 sm:px-4 py-3 sm:py-4 min-h-[44px] text-xs sm:text-sm font-bold uppercase tracking-wider transition-all border-b-2
-              ${mode === 'workflow+code'
-              ? 'bg-neon-green/10 text-neon-green border-neon-green shadow-[inset_0_-2px_10px_rgba(57,255,20,0.2)]'
-              : 'text-gray-500 hover:text-gray-300 border-transparent hover:bg-dark-800'
-            }`}
-        >
-          <Code className="w-4 h-4" />
-          Workflow + Code
-        </button>
-      </div>
+
 
       {/* Counters */}
       {(counters.totalPrompts > 0 || counters.mergedPrompts > 0) && (

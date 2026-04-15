@@ -79,8 +79,8 @@ function SessionList({ sessionLog = [], activeSessionId, onLoadSession }) {
 
       {/* Footer */}
       <div className="px-5 py-2.5 bg-dark-900/50 border-t border-dark-800">
-        <p className="text-[10px] text-gray-600 uppercase tracking-wider">
-          In-memory only · Clears on reload
+        <p className="text-[10px] text-neon-green/80 uppercase tracking-wider">
+          Sync active · Saved to Account
         </p>
       </div>
     </div>

@@ -8,6 +8,13 @@ const sessionSchema = mongoose.Schema(
       unique: true,
       index: true,
     },
+    // Optional: linked to a registered user. Null means guest session.
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
     domain: {
       type: String,
       default: null,

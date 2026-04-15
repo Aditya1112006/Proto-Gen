@@ -245,8 +245,9 @@ function LandingPage() {
                 <h3 className="text-lg font-bold text-white mb-3 uppercase tracking-wide">What is ProtoGen?</h3>
                 <p className="text-gray-400 text-sm leading-relaxed">
                   ProtoGen is an AI-powered prototype generator that converts natural language descriptions into
-                  structured UI workflows and production-ready HTML/CSS/JS code. It uses Google's Gemini 2.0 Flash
-                  model to analyze your prompt, detect the UI domain, and compile a complete prototype — all in seconds.
+                  structured UI workflows and production-ready HTML/CSS/JS code. It uses Google's Gemini Flash
+                  models to instantly compile complete prototypes. Create an account to permanently save your 
+                  generated workspaces to your dashboard.
                 </p>
               </div>
 

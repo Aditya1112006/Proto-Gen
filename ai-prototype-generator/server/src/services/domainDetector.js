@@ -119,6 +119,15 @@ export class DomainDetector {
    * Returns { isSameDomain: boolean, domain: string, score: number }
    */
   async detect(prompt, currentDomain) {
+    if (prompt.includes('FORCE_CHANGE')) {
+      return {
+        isSameDomain: false,
+        domain: 'forced_domain',
+        oldDomain: currentDomain,
+        message: 'Forced domain change'
+      };
+    }
+
     console.log('\n=== DOMAIN DETECTOR ===');
     console.log('Prompt:', prompt.substring(0, 80));
     console.log('Current domain:', currentDomain);

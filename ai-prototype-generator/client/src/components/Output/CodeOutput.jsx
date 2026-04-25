@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { FileCode, Copy, Check, Download, Code2, Play, Monitor, Maximize2, Minimize2 } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { FileCode, Copy, Check, Download, Code2, Monitor, Maximize2, Minimize2 } from 'lucide-react'
 
 function CodeOutput({ files, content }) {
   const [activeTab, setActiveTab] = useState('preview') // 'preview' or file index
@@ -104,10 +105,10 @@ function CodeOutput({ files, content }) {
   }
 
   const containerClass = isFullscreen
-    ? 'fixed inset-0 z-50 bg-dark-950 flex flex-col font-mono'
+    ? 'fixed inset-0 z-[9999] bg-dark-950 flex flex-col font-mono'
     : 'glass-card overflow-hidden font-mono text-sm'
 
-  return (
+  const contentToRender = (
     <div className={containerClass}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0 px-4 sm:px-6 py-4 border-b border-dark-700 bg-dark-900/80">
@@ -171,19 +172,13 @@ function CodeOutput({ files, content }) {
       {/* Content Area */}
       {activeTab === 'preview' ? (
         /* ─── Live Preview Iframe ─── */
-        <div className={`bg-white ${isFullscreen ? 'flex-1' : ''} relative`}>
-          <div className="absolute top-0 left-0 right-0 flex items-center gap-2 px-4 py-1.5 bg-dark-900 border-b border-dark-800 z-10 opacity-70 hover:opacity-100 transition-opacity">
-            <Play className="w-3.5 h-3.5 text-neon-cyan" />
-            <span className="text-[10px] font-bold text-neon-cyan uppercase tracking-widest">
-              &gt; SANDBOX_ENV_ACTIVE
-            </span>
-          </div>
+        <div className={`bg-white ${isFullscreen ? 'flex-1 overflow-hidden' : ''} relative`}>
           <iframe
             srcDoc={previewSrcDoc}
             title="Live Code Preview"
             sandbox="allow-scripts allow-modals"
-            className={`w-full border-0 bg-white pt-8 ${isFullscreen ? 'flex-1 h-full' : ''}`}
-            style={{ minHeight: isFullscreen ? 'calc(100vh - 160px)' : '600px' }}
+            className={`w-full border-0 bg-white ${isFullscreen ? 'h-full' : ''}`}
+            style={{ minHeight: isFullscreen ? '100%' : '600px' }}
           />
         </div>
       ) : (
@@ -224,6 +219,12 @@ function CodeOutput({ files, content }) {
       )}
     </div>
   )
+
+  if (isFullscreen) {
+    return createPortal(contentToRender, document.body)
+  }
+
+  return contentToRender
 }
 
 export default CodeOutput

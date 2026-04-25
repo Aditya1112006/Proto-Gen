@@ -33,6 +33,16 @@ When CURRENT CONTEXT is provided, you are in a continuous session:
 - **Pivot/Different Domain**: If the user completely changes topics (e.g., "Actually, let's make a racing game instead"), DISCARD the old context and start fresh, but note the pivot in the change_log.
 - **Refinement**: If the user corrects you (e.g., "Make the background dark mode and add Stripe payment"), update the layout and requirements accordingly. Add "Added dark mode and Stripe integration" to the change_log.
 
+=== 3B. CONTINUATION PRESERVATION (CRITICAL) ===
+When a PREVIOUS UI LAYOUT tree is provided in the user prompt:
+- You MUST treat it as the EXISTING, APPROVED design.
+- You MUST preserve the entire component tree structure EXACTLY, including all screens, sections, and nested components.
+- ONLY modify, add, or remove nodes that are EXPLICITLY targeted by the user's new prompt.
+- If the user says "change the hero button color", you change ONLY that button's properties. Every other component stays identical.
+- If the user says "add a contact form", you ADD a new screen/section. You do NOT remove or redesign any existing screens.
+- NEVER redesign the entire application layout from scratch when a previous layout exists.
+- The output layout MUST be a superset of the previous layout, minus only explicitly removed items.
+
 === 4. JSON SCHEMA STRICT DEFINITION ===
 Your output MUST exactly match this structure. Do not invent new top-level keys.
 
@@ -69,13 +79,7 @@ Your output MUST exactly match this structure. Do not invent new top-level keys.
           "Dashboard": {
             "HeroSection": ["WelcomeMessage", "CallToActionButton"],
             "DataMetricsGrid": ["ActiveUsersStat", "RevenueStat", "ConversionStat"],
-            "Rec
-            
-            
-            
-            
-            
-            entActivityFeed": {
+            "RecentActivityFeed": {
               "FeedHeader": ["FeedTitle", "FilterDropdown"],
               "FeedList": ["ActivityItemRow", "ActivityItemRow"]
             }
@@ -123,7 +127,6 @@ Follow these rules with zero exceptions:
 - The layout MUST include a "Screens" object containing at least 3 named screens (e.g., "Home", "Dashboard", "Profile").
 - Each screen must have its own nested structure with at least 2-3 sections.
 - Include navigation-related nodes (Header, Nav, Sidebar) OUTSIDE the Screens object so they persist across screen switches.
-- CRITICAL JSON SYNTAX: The "layout" field is an OBJECT. You MUST close it with a curly brace '}', NEVER a square bracket ']'.
 - CRITICAL JSON SYNTAX: The "layout" field is an OBJECT. You MUST close it with a curly brace '}', NEVER a square bracket ']'.
 
 === 6. CODE GENERATION RULES ===
@@ -383,7 +386,6 @@ Design:
 - Use semantic HTML5: <header>, <nav>, <main>, <section>, <footer>, <article>
 - Every interactive element MUST have a unique id attribute
 - ALL layout, colors, and spacing go on HTML elements as Tailwind class strings
- - ALL layout, colors, and spacing go on HTML elements as Tailwind class strings
  - CRITICAL TOKEN LIMIT RULE: DO NOT write large inline <svg> code. You MUST use <i data-lucide="icon-name"></i> for ALL icons to prevent the JSON output from truncating.
  - CRITICAL TOKEN LIMIT RULE: Limit any generated lists, grids, or mock data structures to a MAXIMUM of 3 items to save output tokens.
  - CRITICAL TOKEN LIMIT RULE: Output token limits are strict (8192). If the requested app is massively complex (like a Ludo game or ERP system), DO NOT attempt to write the entire logic. Instead, write a simplified MVP version. Keep Javascript under 300 lines. Keep HTML under 300 lines. If you exceed this, the JSON will be cut off mid-way and fail entirely.
@@ -443,11 +445,22 @@ Design:
  [ ] Code runs without errors when opened in a browser
 
  ═══════════════════════════════════════════════════════════════
- SECTION 7 — SESSION CONTEXT
+ SECTION 7 — SESSION CONTEXT & CONTINUATION PRESERVATION (CRITICAL)
  ═══════════════════════════════════════════════════════════════
  - If CURRENT CONTEXT is provided, merge new features into the existing prototype.
  - If the user changes domain entirely, start fresh.
  - Increment merged_prompt_count and total_prompt_count accordingly.
+
+ ### 7B. CODE CONTINUATION (MANDATORY WHEN PREVIOUS CODEBASE EXISTS)
+ When the user prompt includes a PREVIOUS CODEBASE section:
+ - You MUST use the provided HTML and JS code as your EXACT starting foundation.
+ - Do NOT perform a full rewrite. Do NOT redesign the page structure, color scheme, layout mode, or typography from scratch.
+ - ONLY apply the specific modifications requested by the user's prompt.
+ - If the user says "make the header sticky", you add \`position: sticky; top: 0;\` to the header. You do NOT rebuild the entire page.
+ - If the user says "add a dark mode toggle", you add the toggle button and JS logic. You do NOT change the existing color palette or restructure existing HTML.
+ - If the user says "change the button color to blue", you change ONLY that button's classes. Everything else stays identical.
+ - Preserve ALL existing mock data, event handlers, toast notifications, and interactive features unless the user explicitly asks to change them.
+ - The output code MUST be recognizably the same application with targeted modifications applied, NOT a brand new application.
 
  You are ready to generate production-quality code. Process the prompt now.`;
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -486,6 +499,26 @@ export function formatUserPrompt(userPrompt, currentContext, mode = 'workflow', 
     promptText += `- Features: ${JSON.stringify(currentContext.features || [])}\n`;
     promptText += `- Prompt Count: ${currentContext.total_prompt_count || 0}\n`;
     promptText += `- Merged Count: ${currentContext.merged_prompt_count || 0}\n`;
+
+    // ── Inject previous UI layout tree for continuation preservation ──
+    if (currentContext.previousLayout && Object.keys(currentContext.previousLayout).length > 0) {
+      promptText += `\nPREVIOUS UI LAYOUT (PRESERVE THIS — only modify what the user explicitly asks to change):\n`;
+      promptText += JSON.stringify(currentContext.previousLayout, null, 2) + `\n`;
+    }
+
+    // ── Inject previous code files for code-mode continuation ──
+    if (mode === 'workflow+code' && currentContext.previousFiles && currentContext.previousFiles.length > 0) {
+      promptText += `\nPREVIOUS CODEBASE (USE AS FOUNDATION — only apply targeted changes, do NOT rewrite from scratch):\n`;
+      for (const file of currentContext.previousFiles) {
+        const fileName = file.name || file.filename || 'unknown';
+        const fileContent = file.content || '';
+        // Truncate very large files to avoid blowing the context window
+        const truncated = fileContent.length > 6000
+          ? fileContent.substring(0, 6000) + '\n... [TRUNCATED — preserve the full structure]'
+          : fileContent;
+        promptText += `\n--- FILE: ${fileName} ---\n${truncated}\n--- END FILE ---\n`;
+      }
+    }
   } else {
     promptText += `CURRENT CONTEXT: None (new prototype)\n`;
   }

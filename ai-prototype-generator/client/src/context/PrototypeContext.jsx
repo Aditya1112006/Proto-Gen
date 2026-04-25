@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, useRef } from "react"
 import { generatePrototype, generateCode as generateCodeApi, clearSession as clearSessionApi, getSession as getSessionApi, getHistory } from "../services/api"
 import { useAuthContext } from './AuthContext'
 import sampleLayout from '../data/sampleLayout.json'
@@ -33,7 +33,13 @@ export const PrototypeProvider = ({ children }) => {
 
   const [changeLog, setChangeLog] = useState([])
 
-  const [sessionId, setSessionId] = useState(null)
+  const [sessionId, setSessionIdState] = useState(null)
+  const sessionIdRef = useRef(null)
+
+  const setSessionId = (id) => {
+    setSessionIdState(id)
+    sessionIdRef.current = id
+  }
 
   const [generationStage, setGenerationStage] = useState(null)
 
@@ -56,7 +62,7 @@ export const PrototypeProvider = ({ children }) => {
               domain: item.domain,
               // We don't have the full prototype tree yet; it will be lazy-loaded in loadSession
             }));
-            
+
             // To prevent overwriting immediately generated local, we append API history beneath any local sessions currently in memory (rare edge case)
             setSessionLog(prev => {
               const existingIds = new Set(prev.map(s => s.id));
@@ -131,11 +137,11 @@ export const PrototypeProvider = ({ children }) => {
 
       // Prompt history (save as object for HistoryList)
       setPromptHistory(prev => [
-        ...prev, 
-        { 
-          text: prompt, 
-          timestamp: new Date().toISOString(), 
-          domain: data.metadata?.domain || 'general' 
+        ...prev,
+        {
+          text: prompt,
+          timestamp: new Date().toISOString(),
+          domain: data.metadata?.domain || 'general'
         }
       ])
 
@@ -167,10 +173,10 @@ export const PrototypeProvider = ({ children }) => {
       setGenerationStage("complete")
 
       // Save/update session in sessionLog
-      // When domain changes: archive the OLD session under a unique ID, then add the new one
+      // When domain changes: archive the OLD session, then add the new one
 
       const newSessionEntry = {
-        id: isDomainChanged ? `${data.sessionId}_${Date.now()}` : data.sessionId,
+        id: data.sessionId,
         title: prompt.length > 60 ? prompt.substring(0, 60) + '...' : prompt,
         firstPrompt: prompt,
         timestamp: new Date().toISOString(),
@@ -186,9 +192,9 @@ export const PrototypeProvider = ({ children }) => {
         promptHistory: isDomainChanged
           ? [{ text: prompt, timestamp: new Date().toISOString(), domain: data.metadata?.domain || 'general' }]
           : [
-              ...promptHistory,
-              { text: prompt, timestamp: new Date().toISOString(), domain: data.metadata?.domain || 'general' }
-            ],
+            ...promptHistory,
+            { text: prompt, timestamp: new Date().toISOString(), domain: data.metadata?.domain || 'general' }
+          ],
         counters: {
           totalPrompts: data.metadata?.total_prompt_count || 0,
           mergedPrompts: data.metadata?.merged_prompt_count || 0
@@ -242,8 +248,8 @@ export const PrototypeProvider = ({ children }) => {
 
   // GENERATE CODE
   const generateCodeForPrototype = async () => {
-
-    if (!sessionId) {
+    const activeSessionId = sessionIdRef.current || sessionId;
+    if (!activeSessionId) {
       setError("No active prototype session")
       return
     }
@@ -255,7 +261,7 @@ export const PrototypeProvider = ({ children }) => {
 
       let data;
       try {
-        data = await generateCodeApi(sessionId);
+        data = await generateCodeApi(activeSessionId);
       } catch (e) {
         throw new Error(e.response?.data?.error?.message || "Code generation failed")
       }
@@ -323,7 +329,7 @@ export const PrototypeProvider = ({ children }) => {
   // LOAD A PREVIOUS SESSION from sessionLog or API
   const loadSession = async (id) => {
     let session = sessionLog.find(s => s.id === id)
-    
+
     // If not in memory or just a summary from history fetch, try to fetch full data from API
     if (!session || !session.prototype) {
       try {
@@ -337,9 +343,9 @@ export const PrototypeProvider = ({ children }) => {
             prototype: data.lastOutput,
             domain: data.domain || data.lastOutput?.metadata?.domain || 'general',
             promptHistory: data.prompts || [],
-            counters: { 
-              totalPrompts: data.totalPromptCount || 0, 
-              mergedPrompts: data.mergedPromptCount || 0 
+            counters: {
+              totalPrompts: data.totalPromptCount || 0,
+              mergedPrompts: data.mergedPromptCount || 0
             }
           };
           // Also update it in sessionLog so we don't fetch it again

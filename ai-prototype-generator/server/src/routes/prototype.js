@@ -25,7 +25,7 @@ router.post('/generate', optionalAuth, async (req, res, next) => {
     }
 
     // Get or create session
-    const session = sessionId || (await promptMerger.createSession()).sessionId;
+    let session = sessionId || (await promptMerger.createSession()).sessionId;
     const currentContext = await promptMerger.getContext(session);
 
     // Detect domain
@@ -35,6 +35,12 @@ router.post('/generate', optionalAuth, async (req, res, next) => {
     console.log('domainInfo.domain:', domainInfo.domain);
     console.log('domainInfo.oldDomain:', domainInfo.oldDomain);
     console.log('Response will have domainChanged:', domainInfo.isSameDomain === false);
+
+    // If domain changed, we don't want to wipe the old session's database record.
+    // Instead, we spawn a new session.
+    if (sessionId && domainInfo.isSameDomain === false) {
+      session = (await promptMerger.createSession()).sessionId;
+    }
 
     // Update session with new prompt
     const sessionData = await promptMerger.addPrompt(session, prompt, domainInfo);
@@ -167,10 +173,17 @@ router.post('/code', async (req, res, next) => {
     }
 
     const currentContext = await promptMerger.getContext(sessionId);
+    console.log('\n=== CODE ROUTE DEBUG ===');
+    console.log('sessionId received:', sessionId);
+    console.log('currentContext.domain:', currentContext.domain);
+    console.log('currentContext.title:', currentContext.title);
+    
     if (!currentContext.domain) {
+      const fullSession = await promptMerger.getSession(sessionId);
+      console.log('!!! FULL DB SESSION !!!', fullSession);
       return res.status(400).json({
         success: false,
-        error: { message: 'No active prototype. Please generate a prototype first.', details: 'validation_error' }
+        error: { message: `No active prototype. Please generate a prototype first. (id=${sessionId})`, details: 'validation_error' }
       });
     }
 

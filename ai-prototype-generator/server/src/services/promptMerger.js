@@ -189,6 +189,14 @@ export class PromptMerger {
    */
   async getContext(sessionId) {
     const session = await this.getSession(sessionId);
+
+    // Extract previous layout tree and code files from last LLM output
+    // so continuation prompts can anchor to the existing design.
+    const previousLayout = session.lastOutput?.content?.layout || null;
+    const previousFiles = session.lastOutput?.files
+      || session.lastOutput?.metadata?.files
+      || null;
+
     return {
       domain: session.domain,
       title: session.title,
@@ -196,7 +204,9 @@ export class PromptMerger {
       canonicalRequirements: session.canonicalRequirements,
       total_prompt_count: session.totalPromptCount,
       merged_prompt_count: session.mergedPromptCount,
-      change_log: session.changeLog
+      change_log: session.changeLog,
+      previousLayout,
+      previousFiles,
     };
   }
 

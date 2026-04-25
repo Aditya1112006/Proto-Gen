@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Code, Loader2, Download, Check, FileCode, X, Copy } from 'lucide-react'
+import BuildProcessModal from './BuildProcessModal'
 
 function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) {
   const [isGenerating, setIsGenerating] = useState(false)
@@ -9,12 +10,28 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
   const [copiedFile, setCopiedFile] = useState(null)
   const [copiedAll, setCopiedAll] = useState(false)
 
+  // Build animation state
+  const [showBuildModal, setShowBuildModal] = useState(false)
+  const buildPromiseRef = useRef(null)
+
   const handleClick = async () => {
     if (isGenerating || disabled || !hasPrototype) return
 
     setIsGenerating(true)
+
+    // Create a promise that the build modal will track
+    let resolvePromise
+    const promise = new Promise((resolve) => { resolvePromise = resolve })
+    buildPromiseRef.current = promise
+
+    // Open the animated build overlay
+    setShowBuildModal(true)
+
     try {
       const result = await onGenerate()
+
+      // Signal to the build modal that the real work is done
+      resolvePromise()
 
       if (result?.success) {
         setGenerated(true)
@@ -28,22 +45,35 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
         
         if (filesFromResult.length > 0) {
           setGeneratedFiles(filesFromResult)
-          setShowModal(true)
         } else if (files && files.length > 0) {
           setGeneratedFiles(files.map(f => ({
             filename: f.filename || f.name || 'unnamed.txt',
             language: f.language || 'text',
             content: f.content || ''
           })))
-          setShowModal(true)
         }
 
         setTimeout(() => setGenerated(false), 3000)
+      } else {
+        // Even on logical failure, resolve so the modal can close
       }
     } catch (error) {
       console.error('Generation failed:', error)
+      resolvePromise() // let the animation finish gracefully
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  const handleBuildComplete = () => {
+    // Called when the build animation finishes
+  }
+
+  const handleBuildClose = () => {
+    setShowBuildModal(false)
+    // Now show the files modal if we have files
+    if (generatedFiles.length > 0) {
+      setShowModal(true)
     }
   }
 
@@ -141,6 +171,14 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
           </button>
         </div>
       </div>
+
+      {/* Build Process Animation Modal */}
+      <BuildProcessModal
+        isOpen={showBuildModal}
+        realWorkPromise={buildPromiseRef.current}
+        onComplete={handleBuildComplete}
+        onClose={handleBuildClose}
+      />
 
       {/* Files Modal */}
       {showModal && generatedFiles.length > 0 && (

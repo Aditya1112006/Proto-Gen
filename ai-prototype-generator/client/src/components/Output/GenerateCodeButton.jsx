@@ -131,7 +131,7 @@ function GenerateCodeButton({ onGenerate, hasPrototype, disabled, files = [] }) 
 
   return (
     <>
-      <div className="glass-card p-6 border-l-4 border-l-neon-green relative overflow-hidden group">
+      <div className="glass-card !bg-dark-950 p-6 border-l-4 border-l-neon-green relative overflow-hidden group sticky top-16 z-40">
         <div className="absolute inset-0 bg-neon-green/5 group-hover:bg-neon-green/10 transition-colors"></div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative z-10">
           <div>

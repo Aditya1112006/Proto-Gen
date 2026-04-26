@@ -117,4 +117,5 @@ Thumbs.db
 *.sln
 *.sw?
 node_modules
+.env
 

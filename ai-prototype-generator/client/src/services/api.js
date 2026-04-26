@@ -79,6 +79,12 @@ export async function getHistory() {
   return response.data
 }
 
+// Delete prototype session
+export async function deleteSession(sessionId) {
+  const response = await api.delete(`/prototype/session/${sessionId}`)
+  return response.data
+}
+
 // Authentication
 export async function login(email, password) {
   const response = await api.post('/auth/login', { email, password })

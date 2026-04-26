@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef } from "react"
-import { generatePrototype, generateCode as generateCodeApi, clearSession as clearSessionApi, getSession as getSessionApi, getHistory } from "../services/api"
+import { generatePrototype, generateCode as generateCodeApi, clearSession as clearSessionApi, getSession as getSessionApi, getHistory, deleteSession as deleteSessionApi } from "../services/api"
 import { useAuthContext } from './AuthContext'
 import sampleLayout from '../data/sampleLayout.json'
 
@@ -15,6 +15,8 @@ export const PrototypeProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
   const [currentPrototype, setCurrentPrototype] = useState(null)
+  const [enhancedPrompt, setEnhancedPrompt] = useState(null)
+  const [originalPrompt, setOriginalPrompt] = useState(null)
 
   const [promptHistory, setPromptHistory] = useState([])
 
@@ -93,8 +95,13 @@ export const PrototypeProvider = ({ children }) => {
 
       setIsLoading(true)
       setError(null)
+      setEnhancedPrompt(null)
+      setOriginalPrompt(prompt)
 
-      // Stage 1: Detecting domain
+      // Stage 0: Enhancing prompt
+      setGenerationStage("enhancing")
+      // Stage 1: Detecting domain (these fire while the server is processing)
+      await wait(400)
       setGenerationStage("detecting")
       await wait(300)
 
@@ -123,6 +130,9 @@ export const PrototypeProvider = ({ children }) => {
 
       // Save session
       setSessionId(data.sessionId)
+
+      // Store the enhanced prompt for display in the banner
+      setEnhancedPrompt(data.enhancedPrompt || null)
 
       // Set prototype with pipeline data
       setCurrentPrototype({
@@ -307,6 +317,8 @@ export const PrototypeProvider = ({ children }) => {
     setSessionId(null)
     setCurrentPrototype(null)
     setPromptHistory([])
+    setEnhancedPrompt(null)
+    setOriginalPrompt(null)
 
     setCounters({
       totalPrompts: 0,
@@ -383,6 +395,24 @@ export const PrototypeProvider = ({ children }) => {
     }))
   }
 
+  // DELETE A SESSION
+  const deletePrototype = async (id) => {
+    try {
+      const data = await deleteSessionApi(id);
+      if (data.success) {
+        setSessionLog(prev => prev.filter(s => s.id !== id));
+        if (sessionId === id) {
+          clear();
+        }
+        return true;
+      }
+    } catch (e) {
+      console.error("Failed to delete session:", e);
+      setError("Failed to delete prototype");
+    }
+    return false;
+  }
+
   const getLayout = () => {
     return currentPrototype?.content?.layout || sampleLayout;
   }
@@ -393,6 +423,8 @@ export const PrototypeProvider = ({ children }) => {
         isLoading,
         error,
         currentPrototype,
+        enhancedPrompt,
+        originalPrompt,
         promptHistory,
         counters,
         domainInfo,
@@ -406,6 +438,7 @@ export const PrototypeProvider = ({ children }) => {
         clear,
         loadSession,
         acknowledgeDomainChange,
+        deletePrototype,
         getLayout
       }}
     >

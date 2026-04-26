@@ -1,9 +1,10 @@
 const STEPS = [
+  { key: "enhancing", short: "Enhancing", icon: "✦" },
   { key: "detecting", short: "Domain", icon: "◈" },
   { key: "extracting", short: "Features", icon: "◉" },
   { key: "generating", short: "Generating", icon: "◎" },
   { key: "validating", short: "Validating", icon: "◑" },
-  { key: "complete", short: "Complete", icon: "✦" },
+  { key: "complete", short: "Complete", icon: "✓" },
 ]
 
 function GenerationStatus({ stage }) {

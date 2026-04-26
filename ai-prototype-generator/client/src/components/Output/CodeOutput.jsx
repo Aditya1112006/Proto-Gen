@@ -7,6 +7,92 @@ function CodeOutput({ files, content }) {
   const [copied, setCopied] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
+  // ── Dead Anchor Guardian ──────────────────────────────────────────────────
+  // Injected into every iframe. Intercepts clicks on anchor tags or buttons
+  // that reference a #section which doesn't exist in the generated HTML.
+  // Instead of navigating to a blank page, it shows a friendly in-page toast.
+  const DEAD_ANCHOR_GUARDIAN = `
+<script id="__proto_gen_guardian__">
+(function() {
+  function showGuardianToast(label) {
+    var existing = document.getElementById('__pg_toast__');
+    if (existing) existing.remove();
+    var toast = document.createElement('div');
+    toast.id = '__pg_toast__';
+    toast.style.cssText = [
+      'position:fixed','bottom:24px','right:24px','z-index:99999',
+      'background:#1a1a2e','color:#fff','border:1px solid rgba(191,90,242,0.5)',
+      'border-radius:8px','padding:14px 20px','font-family:monospace',
+      'font-size:13px','max-width:320px','box-shadow:0 4px 24px rgba(0,0,0,0.5)',
+      'display:flex','gap:12px','align-items:center','animation:pgSlideIn 0.3s ease'
+    ].join(';');
+    toast.innerHTML =
+      '<span style="font-size:18px">⚠️</span>' +
+      '<div>' +
+        '<div style="font-weight:700;color:#bf5af2;margin-bottom:2px">Section not generated</div>' +
+        '<div style="color:#aaa;font-size:11px">"' + label + '" was referenced but its content section was not included in this build. Refine your prompt to add it.</div>' +
+      '</div>';
+    var style = document.createElement('style');
+    style.textContent = '@keyframes pgSlideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}';
+    document.head.appendChild(style);
+    document.body.appendChild(toast);
+    setTimeout(function(){ if(toast.parentNode) toast.parentNode.removeChild(toast); }, 4500);
+  }
+
+  function trySmartScroll(hash) {
+    var target = document.querySelector(hash);
+    if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); return true; }
+    // Fuzzy: strip leading # and try partial ID/class match
+    var key = hash.replace('#','').toLowerCase();
+    var all = document.querySelectorAll('[id],[data-section]');
+    for (var i = 0; i < all.length; i++) {
+      var id = (all[i].id || all[i].dataset.section || '').toLowerCase();
+      if (id && (id.includes(key) || key.includes(id))) {
+        all[i].scrollIntoView({ behavior: 'smooth', block: 'start' }); return true;
+      }
+    }
+    return false;
+  }
+
+  document.addEventListener('click', function(e) {
+    var el = e.target.closest('a, button, [onclick], [data-target], [data-section-target]');
+    if (!el) return;
+
+    // Case 1: anchor with href="#something"
+    if (el.tagName === 'A') {
+      var href = el.getAttribute('href') || '';
+      if (href.startsWith('#') && href.length > 1) {
+        var found = trySmartScroll(href);
+        if (!found) {
+          e.preventDefault();
+          e.stopPropagation();
+          showGuardianToast(el.textContent.trim() || href.replace('#',''));
+        }
+        return;
+      }
+      // Blank external links that try to navigate away
+      if (href === '#' || href === '' || href === 'javascript:void(0)') {
+        e.preventDefault();
+      }
+    }
+
+    // Case 2: button or element with onclick that calls showSection/navigateTo/etc.
+    // We DON'T intercept these — the app's own JS should handle them.
+    // But we listen for the page going blank AFTER a short delay.
+  }, true);
+
+  // Blank-page detector: if body becomes empty or near-empty after any click, restore
+  var lastBodyLen = 0;
+  setInterval(function() {
+    var len = (document.body.innerText || '').trim().length;
+    if (lastBodyLen > 100 && len < 20) {
+      showGuardianToast('This section');
+    }
+    lastBodyLen = len;
+  }, 600);
+})();
+</script>`
+
   // Build the merged HTML document for the iframe preview
   const previewSrcDoc = useMemo(() => {
     if (!files || files.length === 0) return ''
@@ -43,7 +129,18 @@ function CodeOutput({ files, content }) {
       }
     }
 
+    // Inject the Dead Anchor Guardian as the VERY FIRST script in <head>
+    // so it runs before any app JS and can intercept all navigation.
+    if (html.includes('<head>')) {
+      html = html.replace('<head>', `<head>\n${DEAD_ANCHOR_GUARDIAN}`)
+    } else if (html.includes('<html>')) {
+      html = html.replace('<html>', `<html>\n${DEAD_ANCHOR_GUARDIAN}`)
+    } else {
+      html = `${DEAD_ANCHOR_GUARDIAN}\n${html}`
+    }
+
     return html
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files])
 
   if (!files || files.length === 0) {

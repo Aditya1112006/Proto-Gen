@@ -423,6 +423,32 @@ Design:
    ];
 
  ═══════════════════════════════════════════════════════════════
+ SECTION 5F — NO DEAD LINKS OR BLANK PAGES (ABSOLUTE RULE)
+ ═══════════════════════════════════════════════════════════════
+ This is the most commonly violated rule. You MUST follow it with zero exceptions.
+
+ **The Rule:** Every anchor tag, nav link, or CTA button that references a section
+ (e.g., href="#achievements", href="#contact", onclick="showSection('media')") MUST
+ have a corresponding HTML element with a matching id in the SAME generated file.
+
+ **Enforcement — Before you write any nav/header links:**
+ 1. List every section you plan to link to (e.g., #home, #achievements, #media, #contact).
+ 2. For EACH section in that list, generate an actual <section id="achievements"> block with real content.
+ 3. If you run out of token budget and cannot generate a section, REMOVE its nav link entirely.
+    DO NOT leave an orphan link pointing to a missing section.
+
+ **For Single-Page Apps with JS navigation (showSection / navigateTo pattern):**
+ - Every section key used in showSection('key') MUST have a matching <div id="section-key"> or <section id="key"> in the HTML.
+ - The JS must default-show one section on load (never leave the page blank).
+ - If using a display:none/block toggle pattern, ALL sections must exist in the DOM; only visibility changes.
+
+ **BANNED patterns:**
+ - <a href="#achievements"> with no <section id="achievements"> in the page. BANNED.
+ - showSection('media') when there is no <div id="media"> element. BANNED.
+ - A nav tab that, when clicked, results in an empty/white screen. BANNED.
+ - Any section set to display:none by default with no JS to show it. BANNED unless toggle logic is implemented.
+
+ ═══════════════════════════════════════════════════════════════
  SECTION 6 — QUALITY CHECKLIST (SELF-VERIFY BEFORE OUTPUT)
  ═══════════════════════════════════════════════════════════════
  Before outputting your response, verify:
@@ -443,6 +469,8 @@ Design:
  [ ] Layout uses responsive Tailwind prefixes (sm:, md:, lg:)
  [ ] "files" array contains ONLY 2 files: "index.html" and "app.js"
  [ ] Code runs without errors when opened in a browser
+ [ ] DEAD LINK AUDIT: Every href="#x" or showSection('x') has a matching id="x" element in the HTML
+ [ ] BLANK PAGE AUDIT: After page load, at least one section is fully visible (no all-hidden state)
 
  ═══════════════════════════════════════════════════════════════
  SECTION 7 — SESSION CONTEXT & CONTINUATION PRESERVATION (CRITICAL)

@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { getHistory } from '../services/api';
 import { useAuthContext } from '../context/AuthContext';
 import { usePrototypeContext } from '../context/PrototypeContext';
-import { Layout, Clock, Terminal, ArrowRight, Code } from 'lucide-react';
+import { Layout, Clock, Terminal, ArrowRight, Code, Trash2 } from 'lucide-react';
 
 export default function Dashboard() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuthContext();
-  const { clear, loadSession } = usePrototypeContext();
+  const { clear, loadSession, deletePrototype } = usePrototypeContext();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,9 +32,6 @@ export default function Dashboard() {
   }, [user]);
 
   const handleOpenPrototype = async (sessionId) => {
-    // Navigate to generator with a special state parameter indicating we should fetch this session
-    // Right now, loadSession gets it from memory, but for a real full stack app, 
-    // we need to fetch it from the server if it's not in memory.
     try {
       const { getSession } = await import('../services/api');
       const response = await getSession(sessionId);
@@ -43,6 +40,16 @@ export default function Dashboard() {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleDeletePrototype = async (e, sessionId) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to delete this prototype? This action cannot be undone.')) {
+      const success = await deletePrototype(sessionId);
+      if (success) {
+        setHistory(prev => prev.filter(item => item.sessionId !== sessionId));
+      }
     }
   };
 
@@ -90,9 +97,18 @@ export default function Dashboard() {
                     <span className="text-xs font-bold text-dark-400 uppercase tracking-wider px-2 py-1 bg-dark-900 border border-dark-800">
                       {item.domain}
                     </span>
-                    {item.hasCode && (
-                      <Code className="w-4 h-4 text-neon-green" title="Contains Code" />
-                    )}
+                    <div className="flex items-center gap-2">
+                      {item.hasCode && (
+                        <Code className="w-4 h-4 text-neon-green" title="Contains Code" />
+                      )}
+                      <button 
+                        onClick={(e) => handleDeletePrototype(e, item.sessionId)}
+                        className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                        title="Delete Prototype"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   <h3 className="text-lg font-bold text-white leading-tight mb-2 group-hover:text-neon-purple transition-colors line-clamp-2">
                     {item.title}

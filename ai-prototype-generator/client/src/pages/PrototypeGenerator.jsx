@@ -11,6 +11,7 @@ import GenerateCodeButton from '../components/Output/GenerateCodeButton'
 import GenerationStatus from '../components/GenerationStatus'
 import DomainChangeModal from '../components/Modals/DomainChangeModal'
 import SessionList from '../components/History/SessionList'
+import EnhancedPromptBanner from '../components/Output/EnhancedPromptBanner'
 
 function PrototypeGenerator() {
 
@@ -21,6 +22,8 @@ function PrototypeGenerator() {
     isLoading,
     error,
     currentPrototype,
+    enhancedPrompt,
+    originalPrompt,
     promptHistory,
     counters,
     domainInfo,
@@ -141,6 +144,12 @@ function PrototypeGenerator() {
 
             {/* Generation Status */}
             <GenerationStatus stage={generationStage} />
+
+            {/* Enhanced Prompt Banner */}
+            <EnhancedPromptBanner
+              originalPrompt={originalPrompt}
+              enhancedPrompt={enhancedPrompt}
+            />
 
             {/* Error */}
             {error && (

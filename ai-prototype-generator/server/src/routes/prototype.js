@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import llmService from '../services/llmService.js';
 import domainDetector from '../services/domainDetector.js';
 import promptMerger from '../services/promptMerger.js';
+import promptEnhancer from '../services/promptEnhancer.js';
 import { optionalAuth, requireAuth } from '../middleware/authMiddleware.js';
 import Session from '../models/Session.js';
 import User from '../models/User.js';
@@ -24,35 +25,47 @@ router.post('/generate', optionalAuth, async (req, res, next) => {
       });
     }
 
-    // Get or create session
+    // ── Step 1: Load session context ──
     let session = sessionId || (await promptMerger.createSession()).sessionId;
     const currentContext = await promptMerger.getContext(session);
 
-    // Detect domain
-    const domainInfo = await domainDetector.detect(prompt, currentContext.domain);
     console.log('\n=== PROTOTYPE ROUTE ===');
+    console.log('Original prompt:', prompt.substring(0, 80));
+
+    // ── Step 2: Domain Detection on RAW prompt (MUST happen before enhancement) ──
+    // We run this on the unmodified user input so the enhancer cannot pollute the
+    // domain signal (e.g. "make a tic tac toe game" must NOT inherit food-delivery context).
+    const domainInfo = await domainDetector.detect(prompt, currentContext.domain);
     console.log('domainInfo.isSameDomain:', domainInfo.isSameDomain);
     console.log('domainInfo.domain:', domainInfo.domain);
-    console.log('domainInfo.oldDomain:', domainInfo.oldDomain);
     console.log('Response will have domainChanged:', domainInfo.isSameDomain === false);
 
-    // If domain changed, we don't want to wipe the old session's database record.
-    // Instead, we spawn a new session.
-    if (sessionId && domainInfo.isSameDomain === false) {
+    const isDomainChanged = domainInfo.isSameDomain === false;
+
+    // If domain changed, spawn a brand-new session so the old one is preserved
+    if (sessionId && isDomainChanged) {
       session = (await promptMerger.createSession()).sessionId;
     }
 
-    // Update session with new prompt
-    const sessionData = await promptMerger.addPrompt(session, prompt, domainInfo);
+    // ── Step 3: Prompt Enhancement (context-aware, but ONLY if same domain) ──
+    // If the domain changed we pass null so the enhancer treats this as a fresh idea.
+    // If same domain we pass context so it understands this is an incremental update.
+    const contextForEnhancement = isDomainChanged ? null : currentContext;
+    const enhancedPrompt = await promptEnhancer.enhance(prompt, contextForEnhancement);
+    console.log('Enhanced prompt (preview):', enhancedPrompt.substring(0, 120) + '...');
 
-    // Prepare context for LLM — if different domain, start fresh
-    const contextForLLM = domainInfo.isSameDomain === false ? null : {
+    // Update session with the enhanced prompt
+    const sessionData = await promptMerger.addPrompt(session, enhancedPrompt, domainInfo);
+
+    // ── Step 4: Build LLM context ──
+    // Fresh context if domain changed, carry-over context if same domain
+    const contextForLLM = isDomainChanged ? null : {
       ...currentContext,
       features: currentContext.features || []
     };
 
-    // Generate prototype via multi-step pipeline (feature extraction + LLM + validation)
-    const result = await llmService.generate(prompt, mode, contextForLLM);
+    // ── Step 5: Generate prototype via multi-step pipeline ──
+    const result = await llmService.generate(enhancedPrompt, mode, contextForLLM);
     
     // Check if the LLM generation failed
     if (result.error) {
@@ -84,6 +97,9 @@ router.post('/generate', optionalAuth, async (req, res, next) => {
       success: true,
       sessionId: session,
       domainChanged: domainInfo.isSameDomain === false,
+      // Surface both prompts so the frontend can show the "magic" expansion
+      originalPrompt: prompt,
+      enhancedPrompt: enhancedPrompt !== prompt ? enhancedPrompt : null,
       metadata: {
         title: metadata.title || content.title || sessionData.title || 'Untitled Prototype',
         domain: domainInfo.domain || metadata.domain || content.domain || 'general',
@@ -255,6 +271,28 @@ router.get('/history', requireAuth, async (req, res, next) => {
     }));
 
     res.json({ success: true, history });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * DELETE /api/prototype/session/:sessionId
+ */
+router.delete('/session/:sessionId', requireAuth, async (req, res, next) => {
+  try {
+    const { sessionId } = req.params;
+    const session = await Session.findOne({ sessionId, userId: req.user._id });
+    
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Prototype not found', details: 'not_found' }
+      });
+    }
+
+    await Session.deleteOne({ sessionId });
+    res.json({ success: true, message: 'Prototype deleted' });
   } catch (error) {
     next(error);
   }

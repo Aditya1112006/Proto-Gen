@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "seed": "node src/scripts/seedKnowledge.js"
   },
   "dependencies": {
     "@google/genai": "^1.45.0",

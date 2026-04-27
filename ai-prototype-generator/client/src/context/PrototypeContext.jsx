@@ -109,6 +109,10 @@ export const PrototypeProvider = ({ children }) => {
       setGenerationStage("extracting")
       await wait(300)
 
+      // Stage 2.5: Retrieving Context (RAG)
+      setGenerationStage("retrieving")
+      await wait(300)
+
       // Stage 3: Generating
       setGenerationStage("generating")
 

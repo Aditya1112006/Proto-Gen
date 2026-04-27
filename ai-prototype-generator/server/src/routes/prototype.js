@@ -7,6 +7,8 @@ import promptEnhancer from '../services/promptEnhancer.js';
 import { optionalAuth, requireAuth } from '../middleware/authMiddleware.js';
 import Session from '../models/Session.js';
 import User from '../models/User.js';
+import ragService from '../services/ragService.js';
+import KnowledgeChunk from '../models/KnowledgeChunk.js';
 
 const router = express.Router();
 
@@ -293,6 +295,57 @@ router.delete('/session/:sessionId', requireAuth, async (req, res, next) => {
 
     await Session.deleteOne({ sessionId });
     res.json({ success: true, message: 'Prototype deleted' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/prototype/rag-search
+ * Expose RAG retrieval for demonstration / transparency.
+ * Accepts a prompt and returns the top knowledge chunks that would be injected into the LLM.
+ */
+router.post('/rag-search', async (req, res, next) => {
+  try {
+    const { prompt, topK = 3 } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ success: false, error: { message: 'prompt is required' } });
+    }
+
+    const rawContext = await ragService.retrieve(prompt, { topK: Math.min(topK, 10) });
+    const chunkCount = (rawContext.match(/\[Knowledge \d+/g) || []).length;
+
+    res.json({
+      success: true,
+      prompt,
+      chunksRetrieved: chunkCount,
+      ragContext: rawContext || '(no matching knowledge found — seed the DB first)',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/prototype/rag-stats
+ * Returns stats about the knowledge base (count, categories breakdown).
+ */
+router.get('/rag-stats', async (req, res, next) => {
+  try {
+    const total = await KnowledgeChunk.countDocuments();
+    const byCategory = await KnowledgeChunk.aggregate([
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]);
+
+    const allChunks = await KnowledgeChunk.find({}, 'title category tags').lean();
+
+    res.json({
+      success: true,
+      totalChunks: total,
+      byCategory: byCategory.map(c => ({ category: c._id, count: c.count })),
+      chunks: allChunks.map(c => ({ title: c.title, category: c.category, tags: c.tags })),
+    });
   } catch (error) {
     next(error);
   }

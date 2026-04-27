@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { SYSTEM_PROMPT, CODE_SYSTEM_PROMPT, formatUserPrompt } from '../utils/promptTemplates.js';
 import featureExtractor from './featureExtractor.js';
 import { validatePrototype } from './prototypeValidator.js';
+import ragService from './ragService.js';
 
 dotenv.config();
 
@@ -114,15 +115,39 @@ export class LLMService {
       // ── Step 1: Feature Extraction (pre-LLM) ──
       const extractedFeatures = featureExtractor.extract(prompt, sessionState);
 
-      // ── Step 2: Select system prompt and parameters based on mode ──
+      // ── Step 2: RAG — Retrieve relevant knowledge from Vector DB ──
+      // Only run RAG for workflow mode (not code gen — different context window budget)
+      let ragContext = '';
+      let ragChunkCount = 0;
+      if (mode === 'workflow') {
+        try {
+          ragContext = await ragService.retrieve(prompt, {
+            topK: 3,
+          });
+          // Count chunks returned (each chunk block starts with [Knowledge)
+          ragChunkCount = (ragContext.match(/\[Knowledge \d+/g) || []).length;
+          if (ragContext) {
+            console.log(`[LLMService] RAG injected ${ragChunkCount} knowledge chunk(s) into prompt`);
+          }
+        } catch (ragError) {
+          // RAG failure must NEVER block generation
+          console.warn('[LLMService] RAG retrieval failed (non-fatal):', ragError.message);
+        }
+      }
+
+      // ── Step 3: Select system prompt and parameters based on mode ──
       const isCodeMode = mode === 'workflow+code';
       const systemPrompt = isCodeMode ? CODE_SYSTEM_PROMPT : SYSTEM_PROMPT;
       const maxTokens = isCodeMode ? this.codeMaxTokens : this.workflowMaxTokens;
       const temperature = isCodeMode ? this.codeTemperature : this.workflowTemperature;
 
-      const userContent = formatUserPrompt(prompt, sessionState, mode, extractedFeatures);
+      // Augment the user content with RAG context if available
+      const baseUserContent = formatUserPrompt(prompt, sessionState, mode, extractedFeatures);
+      const userContent = ragContext
+        ? `${ragContext}\n\n${baseUserContent}`
+        : baseUserContent;
 
-      // ── Step 3: LLM Generation (with multi-model fallback) ──
+      // ── Step 4: LLM Generation (with multi-model fallback) ──
       const genConfig = {
         temperature: temperature,
         maxOutputTokens: maxTokens,
@@ -135,7 +160,7 @@ export class LLMService {
       const responseContent = response.text;
       const parsed = this.parseResponse(responseContent);
 
-      // ── Step 4: Validation (post-LLM) ──
+      // ── Step 5: Validation (post-LLM) ──
       const validationContext = {
         domain: extractedFeatures.domain,
         features: extractedFeatures.features,
@@ -150,12 +175,14 @@ export class LLMService {
         validated.content.pipeline.detected_domain = extractedFeatures.domain;
         validated.content.pipeline.validation_fixes = fixes;
         validated.content.pipeline.feature_confidence = extractedFeatures.confidence;
+        validated.content.pipeline.rag_chunks_used = ragChunkCount;
       }
 
       // Attach pipeline step info for the frontend
       validated.pipelineSteps = [
         { step: 'Domain Detection', result: extractedFeatures.domain, status: 'complete' },
         { step: 'Feature Extraction', result: `${extractedFeatures.features.length} features identified`, status: 'complete' },
+        { step: 'RAG Retrieval', result: ragChunkCount > 0 ? `${ragChunkCount} knowledge chunk(s) retrieved` : 'No matching chunks (knowledge base may be empty)', status: 'complete' },
         { step: 'Prototype Generation', result: 'LLM generated structured spec', status: 'complete' },
         { step: 'Output Validation', result: fixes.length > 0 ? `${fixes.length} fix(es) applied` : 'All fields valid', status: 'complete' }
       ];

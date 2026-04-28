@@ -14,11 +14,10 @@ const ai = new GoogleGenAI({
 // ── Fallback Model Queue ──
 // Ordered by priority. If Model 1 fails (429/503), we seamlessly try Model 2, etc.
 const FALLBACK_MODELS = [
-  process.env.GEMINI_MODEL?.trim().toLowerCase() || 'gemini-3.1-flash-lite-preview',
-  'gemini-3.1-flash-lite-preview',
-  'gemini-3-flash',
+  process.env.GEMINI_MODEL?.trim().toLowerCase() || 'gemini-2.5-flash',
   'gemini-2.5-flash',
-  'gemini-1.5-flash',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-3-flash'
 ];
 
 // Errors that should trigger a fallback retry (including 404 to skip non-existent models)

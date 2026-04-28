@@ -386,9 +386,8 @@ Design:
 - Use semantic HTML5: <header>, <nav>, <main>, <section>, <footer>, <article>
 - Every interactive element MUST have a unique id attribute
 - ALL layout, colors, and spacing go on HTML elements as Tailwind class strings
- - CRITICAL TOKEN LIMIT RULE: DO NOT write large inline <svg> code. You MUST use <i data-lucide="icon-name"></i> for ALL icons to prevent the JSON output from truncating.
- - CRITICAL TOKEN LIMIT RULE: Limit any generated lists, grids, or mock data structures to a MAXIMUM of 3 items to save output tokens.
- - CRITICAL TOKEN LIMIT RULE: Output token limits are strict (8192). If the requested app is massively complex (like a Ludo game or ERP system), DO NOT attempt to write the entire logic. Instead, write a simplified MVP version. Keep Javascript under 300 lines. Keep HTML under 300 lines. If you exceed this, the JSON will be cut off mid-way and fail entirely.
+ - IMPORTANT: DO NOT write large inline <svg> code. You MUST use <i data-lucide="icon-name"></i> for ALL icons.
+ - GENERATE ROBUST LOGIC: Write complete, fully functional JavaScript. Ensure EVERY screen requested (e.g., Vault, Marketplace) is fully implemented with HTML structures and JavaScript logic to toggle between them. Do not write 'simplified' versions. You have an enormous 20,000 token output limit, use it to write massive, high-fidelity prototypes.
 
  ### 5C. BUTTONS (UNIVERSAL PATTERN)
  Primary:
@@ -400,14 +399,15 @@ Design:
    class="px-6 py-3 bg-white text-gray-700 font-medium rounded-xl border border-gray-200
           hover:bg-gray-50 hover:border-gray-300 transition-all duration-200"
 
- ### 5D. JAVASCRIPT REQUIREMENTS
+ ### 5D. JAVASCRIPT REQUIREMENTS (INTERACTIVITY IS MANDATORY)
  - Use modern ES6+ (const, let, arrow functions, template literals)
- - All data must be realistic — use real names, real numbers, real dates — NO "Lorem ipsum", "Item 1", or placeholders
- - Implement tab/section/screen navigation with smooth transitions
- - Add click handlers that produce visible feedback (toasts, state changes, modals)
- - Create a toast notification that slides in from bottom-right on key actions
- - Use document.addEventListener('DOMContentLoaded', () => { ... }) to initialize
- - Keep JavaScript clean — no console.log, no dead code, meaningful variable names
+ - You MUST implement a functional View/Tab Switcher. When a user clicks a nav link (e.g., 'Vault'), it MUST hide all other sections and show the 'Vault' section. Never leave the user staring at a blank screen!
+ - Add CSS/JS transitions so that when views change, the new content fades in smoothly.
+ - All data must be realistic — use real names, real numbers, real dates — NO "Lorem ipsum".
+ - If a specific page is requested (like a Marketplace or Vault), you MUST pre-populate it with at least 3-4 rich, interactive mock items (like cards with hover effects).
+ - Add click handlers that produce visible feedback (e.g., a "toast" notification sliding in from bottom-right when a button is clicked, or an item being added to a cart).
+ - Use document.addEventListener('DOMContentLoaded', () => { ... }) to initialize the view to the default home screen.
+ - Keep JavaScript clean — no dead code, use meaningful variable names.
 
  ### 5E. MOCK DATA — ALWAYS REALISTIC
  For a Portfolio:

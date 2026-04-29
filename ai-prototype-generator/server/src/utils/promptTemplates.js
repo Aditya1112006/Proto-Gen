@@ -399,15 +399,16 @@ Design:
    class="px-6 py-3 bg-white text-gray-700 font-medium rounded-xl border border-gray-200
           hover:bg-gray-50 hover:border-gray-300 transition-all duration-200"
 
- ### 5D. JAVASCRIPT REQUIREMENTS (INTERACTIVITY IS MANDATORY)
- - Use modern ES6+ (const, let, arrow functions, template literals)
- - You MUST implement a functional View/Tab Switcher. When a user clicks a nav link (e.g., 'Vault'), it MUST hide all other sections and show the 'Vault' section. Never leave the user staring at a blank screen!
+ ### 5D. JAVASCRIPT REQUIREMENTS (INTERACTIVITY IS MANDATORY & DEEP)
+ - Use modern ES6+ (const, let, arrow functions, template literals).
+ - **ROBUST ROUTING/VIEWS:** You MUST implement a fully-functional View/Tab Switcher. When a user clicks a nav link, hide all other sections and show the target section. ALL navigation links MUST WORK and toggle visibility of massive, fully-developed sections. NEVER leave the user staring at a blank screen!
+ - **DEEP STATE MANAGEMENT:** Implement complex JavaScript logic for the core features (e.g., shopping cart logic, form validations, data filtering, sorting, or interactive dashboards). Do not just mock the UI; mock the functionality deeply.
+ - **NO DEAD BUTTONS:** Every single button, icon, and interactive element in the UI MUST have an event listener attached in app.js that does something meaningful (updates state, toggles a modal, renders a toast, updates a chart, etc.). ZERO dead buttons are allowed.
  - Add CSS/JS transitions so that when views change, the new content fades in smoothly.
  - All data must be realistic — use real names, real numbers, real dates — NO "Lorem ipsum".
- - If a specific page is requested (like a Marketplace or Vault), you MUST pre-populate it with at least 3-4 rich, interactive mock items (like cards with hover effects).
- - Add click handlers that produce visible feedback (e.g., a "toast" notification sliding in from bottom-right when a button is clicked, or an item being added to a cart).
- - Use document.addEventListener('DOMContentLoaded', () => { ... }) to initialize the view to the default home screen.
- - Keep JavaScript clean — no dead code, use meaningful variable names.
+ - If a specific page is requested (like a Marketplace or Vault), you MUST pre-populate it with at least 4-6 rich, interactive mock items and build the logic to interact with them.
+ - Use document.addEventListener('DOMContentLoaded', () => { ... }) to initialize the view to the default home screen and render initial mock data.
+ - Keep JavaScript clean — no dead code, use meaningful variable names, and provide massive, high-fidelity interactivity. You have a 20,000 token output limit—use it to write an incredibly deep, enjoyable user experience.
 
  ### 5E. MOCK DATA — ALWAYS REALISTIC
  For a Portfolio:

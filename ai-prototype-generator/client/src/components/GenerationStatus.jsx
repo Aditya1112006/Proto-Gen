@@ -1,5 +1,6 @@
+import React from 'react'
+
 const STEPS = [
-  { key: "enhancing", short: "Enhancing", icon: "✦" },
   { key: "detecting", short: "Domain", icon: "◈" },
   { key: "extracting", short: "Features", icon: "◉" },
   { key: "retrieving", short: "RAG Context", icon: "⎈" },
@@ -34,19 +35,18 @@ function GenerationStatus({ stage }) {
       </div>
 
       {/* Stepper Row */}
-      <div className="flex items-center w-full">
+      <div className="flex items-center w-full overflow-x-auto no-scrollbar pb-1">
         {STEPS.map((step, index) => {
           const isActive = step.key === stage
           const isComplete = currentIndex > index && !isError
-          const isPending = !isActive && !isComplete
 
           return (
-            <div key={step.key} className="flex items-center flex-1 min-w-0">
+            <React.Fragment key={step.key}>
               {/* Step pill */}
               <div
                 className={`
                   flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap text-[11px] font-bold uppercase tracking-wider
-                  border transition-all duration-500 flex-shrink-0
+                  border transition-all duration-500 shrink-0
                   ${isActive
                     ? 'bg-neon-cyan/10 text-neon-cyan border-neon-cyan/50 shadow-[0_0_14px_rgba(0,240,255,0.25)] animate-pulse-slow'
                     : isComplete
@@ -60,16 +60,16 @@ function GenerationStatus({ stage }) {
                 <span>{step.short}</span>
               </div>
 
-              {/* Connector line — shown between steps, not after the last */}
+              {/* Connector line */}
               {index < STEPS.length - 1 && (
-                <div className="flex-1 mx-1 min-w-[8px] h-px bg-dark-700">
+                <div className="flex-1 min-w-[16px] mx-2 h-px bg-dark-700">
                   <div
                     className={`h-full transition-all duration-700 ${isComplete ? 'bg-neon-green/50 w-full' : 'w-0'
                       }`}
                   />
                 </div>
               )}
-            </div>
+            </React.Fragment>
           )
         })}
       </div>

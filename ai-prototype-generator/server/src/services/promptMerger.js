@@ -1,254 +1,243 @@
 /**
- * Service for merging prompts and managing prototype state via MongoDB
+ * SessionManager - Tracks prototype session state across multiple prompt turns.
+ *
+ * A session = one continuous design conversation. Users send multiple prompts
+ * that progressively refine the same prototype. This service:
+ *   1. Stores each prompt turn in MongoDB.
+ *   2. Accumulates requirements across turns, resolving conflicts (newest wins).
+ *   3. Supplies the assembled context the LLM needs for incremental updates.
+ *   4. Resets accumulated state when the domain classifier detects a new topic.
  */
+
 import crypto from 'crypto';
 import Session from '../models/Session.js';
 
-export class PromptMerger {
-  /**
-   * Create a new session
-   * @returns {Object} New session object
-   */
+// Maximum requirements kept in the canonical list (oldest evicted when full).
+const MAX_REQS = 8;
+
+export class SessionManager {
+  // ── Session CRUD ────────────────────────────────────────────────────────────
+
+  /** Create and persist a blank session. */
   async createSession() {
-    const sessionId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const session = new Session({
-      sessionId,
-      changeLog: []
-    });
-    await session.save();
-    return session.toObject();
+    const id = crypto.randomUUID ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    const s = new Session({ sessionId: id, changeLog: [] });
+    await s.save();
+    return s.toObject();
   }
 
   /**
-   * Get or initialize session state
+   * Load an existing session, or create one if the ID doesn't exist yet.
+   * @param {string} id
+   * @returns {Promise<Session>}
    */
-  async getSession(sessionId) {
-    let session = await Session.findOne({ sessionId });
-    if (!session) {
-      session = new Session({
-        sessionId,
-        changeLog: []
-      });
-      await session.save();
+  async getSession(id) {
+    let s = await Session.findOne({ sessionId: id });
+    if (!s) {
+      s = new Session({ sessionId: id, changeLog: [] });
+      await s.save();
     }
-    return session;
+    return s;
   }
 
-  /**
-   * Add a new prompt to the session
-   */
-  async addPrompt(sessionId, prompt, domainInfo) {
-    const session = await this.getSession(sessionId);
-
-    const timestamp = new Date().toISOString();
-    session.prompts.push({
-      text: prompt,
-      timestamp,
-      domain: domainInfo.domain
-    });
-
-    session.totalPromptCount++;
-
-    // domainInfo.isSameDomain === false means different domain → clear context
-    if (domainInfo.isSameDomain === false) {
-      // Reset for new domain
-      session.mergedPromptCount = 1;
-      session.mergedRequirements = { functional: [], non_functional: [] };
-      session.canonicalRequirements = [];
-      session.changeLog = [{
-        when: timestamp,
-        note: `New prototype started - ${this.summarizeChange(prompt)}`
-      }];
-    } else {
-      session.mergedPromptCount++;
-      session.changeLog.push({
-        when: timestamp,
-        note: this.summarizeChange(prompt)
-      });
-    }
-
-    session.domain = domainInfo.domain;
-
-    await session.save();
-    return session.toObject();
+  /** Delete a session and all its data. */
+  async clearSession(id) {
+    await Session.deleteOne({ sessionId: id });
   }
 
-  /**
-   * Create a brief summary of what a prompt adds
-   */
-  summarizeChange(prompt) {
-    // Simple extraction - get first 50 chars or until first sentence
-    const summary = prompt.split(/[.!?]/)[0].trim();
-    return summary.length > 60 ? summary.substring(0, 60) + '...' : summary;
-  }
+  // ── Context Assembly ────────────────────────────────────────────────────────
 
   /**
-   * Merge requirements from LLM response
-   * @param {string} sessionId
-   * @param {Array} newRequirementsArray - Array of requirement strings
-   * @returns {Array} Merged requirements array
+   * Build the context object passed to the LLM for continuation prompts.
+   * Includes the previous layout and files so the model can make targeted
+   * edits rather than regenerating everything from scratch.
+   *
+   * @param {string} id
+   * @returns {Promise<object>}
    */
-  async mergeRequirements(sessionId, newRequirementsArray) {
-    const session = await this.getSession(sessionId);
-
-    if (!Array.isArray(newRequirementsArray)) {
-      return session.canonicalRequirements;
-    }
-
-    const timestamp = new Date().toISOString();
-
-    // Deduplicate and merge, keeping max 8 items
-    for (const newReq of newRequirementsArray) {
-      // Check for conflicts
-      const conflict = this.findConflict(newReq, session.canonicalRequirements);
-      if (conflict) {
-        // Prefer newer, note conflict in changeLog
-        session.changeLog.push({
-          when: timestamp,
-          note: `Updated requirement: "${conflict}" → "${newReq}"`
-        });
-        // Remove conflict and add new
-        session.canonicalRequirements = session.canonicalRequirements.filter(r => r !== conflict);
-        session.canonicalRequirements.push(newReq);
-      } else if (!this.isDuplicate(newReq, session.canonicalRequirements)) {
-        session.canonicalRequirements.push(newReq);
-      }
-    }
-
-    // Limit to 8 items
-    if (session.canonicalRequirements.length > 8) {
-      const removed = session.canonicalRequirements.length - 8;
-      session.canonicalRequirements = session.canonicalRequirements.slice(-8);
-      session.changeLog.push({
-        when: timestamp,
-        note: `Limited to 8 requirements (removed ${removed} older items)`
-      });
-    }
-
-    // Also update mergedRequirements for backwards compatibility
-    session.mergedRequirements = {
-      functional: session.canonicalRequirements,
-      non_functional: []
+  async getContext(id) {
+    const s = await this.getSession(id);
+    return {
+      domain:              s.domain,
+      title:               s.title,
+      requirements:        s.mergedRequirements,
+      canonicalRequirements: s.canonicalRequirements,
+      total_prompt_count:  s.totalPromptCount,
+      merged_prompt_count: s.mergedPromptCount,
+      change_log:          s.changeLog,
+      previousLayout:      s.lastOutput?.content?.layout || null,
+      previousFiles:       s.lastOutput?.files || s.lastOutput?.metadata?.files || null,
     };
-
-    await session.save();
-    return session.canonicalRequirements;
   }
 
+  // ── Prompt Recording ────────────────────────────────────────────────────────
+
   /**
-   * Check if two requirements conflict
+   * Save a new user prompt turn and update session counters.
+   * When a domain shift is detected the session resets so the old
+   * prototype's requirements don't bleed into the new one.
+   *
+   * @param {string} id            Session ID.
+   * @param {string} promptText    Enhanced prompt text.
+   * @param {object} domain        Result from AppDomainClassifier.detect().
+   * @returns {Promise<object>}    Updated session as a plain object.
    */
-  findConflict(newReq, existingReqs) {
-    const newKeywords = this.extractRequirementKeywords(newReq);
+  async addPrompt(id, promptText, domain) {
+    const s = await this.getSession(id);
+    const now = new Date().toISOString();
 
-    for (const existing of existingReqs) {
-      const existingKeywords = this.extractRequirementKeywords(existing);
-      const overlap = newKeywords.filter(k => existingKeywords.includes(k));
+    s.prompts.push({ text: promptText, timestamp: now, domain: domain.domain });
+    s.totalPromptCount++;
 
-      // If significant overlap, consider it a conflict
-      if (overlap.length >= Math.min(newKeywords.length, existingKeywords.length) * 0.5) {
-        return existing;
+    if (domain.isSameDomain === false) {
+      // Domain shift – wipe accumulated state for the old prototype.
+      s.mergedPromptCount = 1;
+      s.mergedRequirements = { functional: [], non_functional: [] };
+      s.canonicalRequirements = [];
+      s.changeLog = [{ when: now, note: `New prototype started – ${this._summarize(promptText)}` }];
+    } else {
+      s.mergedPromptCount++;
+      s.changeLog.push({ when: now, note: this._summarize(promptText) });
+    }
+
+    s.domain = domain.domain;
+    await s.save();
+    return s.toObject();
+  }
+
+  // ── Output Saving ───────────────────────────────────────────────────────────
+
+  /**
+   * Write the LLM's structured output back into the session.
+   * Also merges any new requirements into the canonical list.
+   *
+   * @param {string} id
+   * @param {object} output  Validated LLM output.
+   * @returns {Promise<object>}
+   */
+  async saveResult(id, output) {
+    const s = await this.getSession(id);
+
+    if (output.metadata?.title) s.title = output.metadata.title;
+
+    if (output.content?.requirements) {
+      const incoming = Array.isArray(output.content.requirements)
+        ? output.content.requirements
+        : output.content.requirements.functional || [];
+      this._mergeReqs(s, incoming);
+    }
+
+    s.lastOutput = output;
+    await s.save();
+    return s.toObject();
+  }
+
+  // ── Requirement Merging ─────────────────────────────────────────────────────
+
+  /**
+   * Merge incoming requirements into the session's canonical list.
+   * Mutates the session document in place – caller must save afterwards.
+   *
+   * Conflict rule: if a new requirement has ≥50% keyword overlap with an
+   * existing one, the newer version replaces the older one.
+   *
+   * @param {Session} s
+   * @param {string[]} incoming
+   */
+  _mergeReqs(s, incoming) {
+    const now = new Date().toISOString();
+
+    for (const req of incoming) {
+      const conflict = this._findConflict(req, s.canonicalRequirements);
+
+      if (conflict) {
+        s.changeLog.push({ when: now, note: `Updated: "${conflict}" → "${req}"` });
+        s.canonicalRequirements = s.canonicalRequirements.filter(r => r !== conflict);
+        s.canonicalRequirements.push(req);
+      } else if (!this._isDuplicate(req, s.canonicalRequirements)) {
+        s.canonicalRequirements.push(req);
       }
     }
 
+    // FIFO eviction when list is too long.
+    if (s.canonicalRequirements.length > MAX_REQS) {
+      const dropped = s.canonicalRequirements.length - MAX_REQS;
+      s.canonicalRequirements = s.canonicalRequirements.slice(-MAX_REQS);
+      s.changeLog.push({ when: new Date().toISOString(), note: `${dropped} older requirement(s) evicted` });
+    }
+
+    s.mergedRequirements = { functional: s.canonicalRequirements, non_functional: [] };
+  }
+
+  /**
+   * Find an existing requirement that conflicts with the incoming one
+   * (≥50% keyword overlap).
+   *
+   * @param {string} incoming
+   * @param {string[]} existing
+   * @returns {string|null}
+   */
+  _findConflict(incoming, existing) {
+    const inWords = this._getKeywords(incoming);
+    for (const req of existing) {
+      const exWords = this._getKeywords(req);
+      const shared  = inWords.filter(w => exWords.includes(w)).length;
+      if (shared >= Math.min(inWords.length, exWords.length) * 0.5) return req;
+    }
     return null;
   }
 
   /**
-   * Check if requirement is duplicate
+   * Check if the incoming requirement is already in the list (exact / near-exact).
+   *
+   * @param {string} incoming
+   * @param {string[]} existing
+   * @returns {boolean}
    */
-  isDuplicate(newReq, existingReqs) {
-    const normalized = newReq.toLowerCase().replace(/[^\w]/g, '');
-    return existingReqs.some(req => {
-      const existingNorm = req.toLowerCase().replace(/[^\w]/g, '');
-      return normalized === existingNorm ||
-             normalized.includes(existingNorm) ||
-             existingNorm.includes(normalized);
-    });
+  _isDuplicate(incoming, existing) {
+    const norm = s => s.toLowerCase().replace(/\W/g, '');
+    const a = norm(incoming);
+    return existing.some(r => { const b = norm(r); return a === b || a.includes(b) || b.includes(a); });
   }
 
   /**
-   * Extract key terms from requirement
+   * Extract content-bearing keywords from a requirement string.
+   *
+   * @param {string} text
+   * @returns {string[]}
    */
-  extractRequirementKeywords(req) {
-    return req.toLowerCase()
-      .split(/\s+/)
-      .filter(w => w.length > 3)
-      .filter(w => !['should', 'must', 'will', 'that', 'with', 'from', 'have', 'this'].includes(w));
+  _getKeywords(text) {
+    const stop = new Set(['should', 'must', 'will', 'that', 'with', 'from', 'have', 'this', 'able', 'user']);
+    return text.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !stop.has(w));
   }
 
   /**
-   * Clear session state
+   * Produce a short one-liner summary of a prompt for the change log.
+   *
+   * @param {string} text
+   * @returns {string}
    */
-  async clearSession(sessionId) {
-    await Session.deleteOne({ sessionId });
+  _summarize(text) {
+    const first = text.split(/[.!?]/)[0].trim();
+    return first.length > 60 ? `${first.substring(0, 60)}...` : first;
   }
 
-  /**
-   * Get current context for LLM
-   */
-  async getContext(sessionId) {
-    const session = await this.getSession(sessionId);
+  // ── Backward-compat aliases ─────────────────────────────────────────────────
+  /** @deprecated Use addPrompt() */
+  async recordPromptTurn(id, text, domain) { return this.addPrompt(id, text, domain); }
 
-    // Extract previous layout tree and code files from last LLM output
-    // so continuation prompts can anchor to the existing design.
-    const previousLayout = session.lastOutput?.content?.layout || null;
-    const previousFiles = session.lastOutput?.files
-      || session.lastOutput?.metadata?.files
-      || null;
+  /** @deprecated Use saveResult() */
+  async updateWithOutput(id, output) { return this.saveResult(id, output); }
 
-    return {
-      domain: session.domain,
-      title: session.title,
-      requirements: session.mergedRequirements,
-      canonicalRequirements: session.canonicalRequirements,
-      total_prompt_count: session.totalPromptCount,
-      merged_prompt_count: session.mergedPromptCount,
-      change_log: session.changeLog,
-      previousLayout,
-      previousFiles,
-    };
-  }
-
-  /**
-   * Update session with LLM output
-   */
-  async updateWithOutput(sessionId, output) {
-    const session = await this.getSession(sessionId);
-
-    if (output.metadata?.title) {
-      session.title = output.metadata.title;
-    }
-
-    if (output.content?.requirements) {
-      // Handle both array and object formats
-      const reqs = Array.isArray(output.content.requirements)
-        ? output.content.requirements
-        : output.content.requirements.functional || [];
-      
-      // We process the requirements memory update synchronously here, then save below
-      const timestamp = new Date().toISOString();
-      for (const newReq of reqs) {
-        const conflict = this.findConflict(newReq, session.canonicalRequirements);
-        if (conflict) {
-          session.changeLog.push({ when: timestamp, note: `Updated requirement: "${conflict}" → "${newReq}"` });
-          session.canonicalRequirements = session.canonicalRequirements.filter(r => r !== conflict);
-          session.canonicalRequirements.push(newReq);
-        } else if (!this.isDuplicate(newReq, session.canonicalRequirements)) {
-          session.canonicalRequirements.push(newReq);
-        }
-      }
-      if (session.canonicalRequirements.length > 8) {
-        session.canonicalRequirements = session.canonicalRequirements.slice(-8);
-      }
-      session.mergedRequirements = { functional: session.canonicalRequirements, non_functional: [] };
-    }
-
-    session.lastOutput = output;
-
-    await session.save();
-    return session.toObject();
+  /** @deprecated */
+  async mergeRequirements(id, reqs) {
+    if (!Array.isArray(reqs)) return [];
+    const s = await this.getSession(id);
+    this._mergeReqs(s, reqs);
+    await s.save();
+    return s.canonicalRequirements;
   }
 }
 
-export default new PromptMerger();
+export default new SessionManager();

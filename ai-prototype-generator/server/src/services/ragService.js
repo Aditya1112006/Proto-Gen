@@ -1,118 +1,171 @@
-import KnowledgeChunk from '../models/KnowledgeChunk.js';
-import { generateEmbedding, cosineSimilarity } from './embeddingService.js';
-
-const TOP_K = 3; // Number of chunks to retrieve
-const MIN_SIMILARITY = 0.05; // Minimum cosine similarity threshold
-
 /**
- * RAG Service — Retrieval-Augmented Generation
+ * RAG Service - Retrieves the most relevant UI/UX knowledge for a given prompt.
  *
- * Workflow:
- *   1. Convert user prompt → 100-dim keyword frequency vector
- *   2. Load all knowledge chunks from MongoDB, compute cosine similarity
- *   3. Return top-K most relevant chunks as formatted context strings
- *
- * Note: For a production system with thousands of documents, this would be
- * replaced with MongoDB Atlas $vectorSearch (dense 768-dim embeddings via
- * text-embedding-004). For this academic project, in-app cosine similarity
- * with keyword frequency vectors demonstrates the full RAG pattern correctly.
+ * Pipeline:
+ *   1. Detect a likely intent category from the query (optional pre-filter).
+ *   2. Load all knowledge chunks from MongoDB (cached for 5 minutes).
+ *   3. Pre-filter by category if a strong signal exists – avoids running
+ *      cosine similarity over the whole corpus for every request.
+ *   4. Score each candidate chunk against the query vector.
+ *   5. Return the top-K chunks as a formatted context string for the LLM prompt.
  */
+
+import KnowledgeChunk from '../models/KnowledgeChunk.js';
+import { toVector, getSimilarity } from './embeddingService.js';
+
+const TOP_K_DEFAULT   = 3;
+const MIN_SCORE       = 0.05;
+const CACHE_TTL_MS    = 5 * 60 * 1000; // 5 minutes
+
+// Maps intent keywords to knowledge categories for the pre-filter step.
+const INTENT_SIGNALS = {
+  dashboard:   ['dashboard', 'analytics', 'admin', 'metrics', 'stats', 'panel'],
+  navigation:  ['sidebar', 'navbar', 'menu', 'breadcrumb', 'navigation', 'header'],
+  forms:       ['form', 'input', 'login', 'register', 'signup', 'validation', 'field'],
+  ecommerce:   ['cart', 'checkout', 'product', 'shop', 'store', 'payment', 'order'],
+  layout:      ['layout', 'grid', 'flex', 'responsive', 'card', 'container', 'section'],
+  feedback:    ['toast', 'modal', 'alert', 'notification', 'dialog', 'confirmation'],
+};
+
 class RAGService {
   constructor() {
-    this._cache = null; // Simple in-memory cache of all chunks
-    this._cacheExpiry = 0;
-    this.CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-  }
-
-  /**
-   * Retrieve the most relevant knowledge chunks for a given query.
-   * @param {string} query - The user's prompt / search query
-   * @param {object} options - { topK, category }
-   * @returns {string} Formatted context string ready to inject into the LLM prompt
-   */
-  async retrieve(query, options = {}) {
-    const topK = options.topK || TOP_K;
-
-    try {
-      // Step 1: Embed the query
-      const queryVector = await generateEmbedding(query);
-
-      // Step 2: Load all chunks (with caching)
-      const chunks = await this._loadChunks();
-
-      if (!chunks || chunks.length === 0) {
-        console.warn('[RAGService] Knowledge base is empty. Run: npm run seed');
-        return '';
-      }
-
-      // Step 3: Compute cosine similarity for each chunk
-      const scored = chunks
-        .map(chunk => ({
-          ...chunk,
-          score: cosineSimilarity(queryVector, chunk.embedding),
-        }))
-        .filter(chunk => chunk.score >= MIN_SIMILARITY)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, topK);
-
-      if (scored.length === 0) {
-        console.log('[RAGService] No chunks passed similarity threshold for query:', query.substring(0, 60));
-        return '';
-      }
-
-      console.log(`[RAGService] ✓ Retrieved ${scored.length} chunk(s) | scores: ${scored.map(c => c.score.toFixed(3)).join(', ')}`);
-      return this._formatContext(scored);
-
-    } catch (error) {
-      console.error('[RAGService] Retrieval error:', error.message);
-      return ''; // Return empty string so the LLM still works without RAG context
-    }
-  }
-
-  /**
-   * Load all knowledge chunks from MongoDB with a short-lived cache.
-   */
-  async _loadChunks() {
-    const now = Date.now();
-    if (this._cache && now < this._cacheExpiry) {
-      return this._cache;
-    }
-
-    const chunks = await KnowledgeChunk.find({}, 'title text category tags embedding').lean();
-    this._cache = chunks;
-    this._cacheExpiry = now + this.CACHE_TTL_MS;
-    console.log(`[RAGService] Loaded ${chunks.length} knowledge chunk(s) from MongoDB`);
-    return chunks;
-  }
-
-  /**
-   * Invalidate the cache (call after seeding new chunks).
-   */
-  invalidateCache() {
     this._cache = null;
     this._cacheExpiry = 0;
   }
 
   /**
-   * Format retrieved chunks into a clean context block for the LLM prompt.
+   * Find and return the most relevant knowledge chunks for a query.
+   *
+   * @param {string} query - User prompt or search string.
+   * @param {{ topK?: number, forceCategory?: string }} opts
+   * @returns {Promise<string>} Formatted context block ready to inject into the LLM.
    */
-  _formatContext(chunks) {
-    if (!chunks || chunks.length === 0) return '';
+  async retrieve(query, opts = {}) {
+    const topK = opts.topK || TOP_K_DEFAULT;
 
-    const formattedChunks = chunks.map((chunk, i) => {
-      return `[Knowledge ${i + 1} — ${chunk.category?.toUpperCase() || 'TEMPLATE'}: ${chunk.title}]
-${chunk.text}
-[Tags: ${(chunk.tags || []).join(', ')}]`;
+    try {
+      // Build the query vector, load chunks, pre-filter, score, and rank.
+      const queryVec = await toVector(query);
+      const allChunks = await this._loadChunks();
+
+      if (!allChunks.length) {
+        console.warn('[RAGService] Knowledge base is empty – run: npm run seed');
+        return '';
+      }
+
+      const category = opts.forceCategory || this._getCategory(query);
+      const pool = category ? this._filterChunks(allChunks, category) : allChunks;
+
+      if (category) {
+        console.log(`[RAGService] Pre-filtered to "${category}" → ${pool.length} candidates`);
+      }
+
+      // If pre-filter removed everything, fall back to the full corpus.
+      const searchPool = pool.length > 0 ? pool : allChunks;
+
+      const ranked = searchPool
+        .map(chunk => ({ ...chunk, score: getSimilarity(queryVec, chunk.embedding) }))
+        .filter(chunk => chunk.score >= MIN_SCORE)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, topK);
+
+      if (!ranked.length) {
+        console.log('[RAGService] No chunks passed relevance threshold for:', query.substring(0, 60));
+        return '';
+      }
+
+      console.log(
+        `[RAGService] ✓ ${ranked.length} chunk(s) | scores: ${ranked.map(c => c.score.toFixed(3)).join(', ')}`
+      );
+
+      return this._buildContext(ranked);
+
+    } catch (err) {
+      // RAG failures must never crash the generation pipeline.
+      console.error('[RAGService] Retrieval error (non-fatal):', err.message);
+      return '';
+    }
+  }
+
+  /**
+   * Detect the most likely intent category from a query string.
+   * Returns null when no strong signal is found (< 2 keyword matches).
+   *
+   * @param {string} query
+   * @returns {string|null}
+   */
+  _getCategory(query) {
+    const q = query.toLowerCase();
+    let best = null, max = 0;
+
+    for (const [cat, signals] of Object.entries(INTENT_SIGNALS)) {
+      const hits = signals.filter(s => q.includes(s)).length;
+      if (hits > max) { max = hits; best = cat; }
+    }
+
+    return max >= 2 ? best : null;
+  }
+
+  /**
+   * Keep only chunks that belong to the target category (or 'general').
+   *
+   * @param {Array} chunks
+   * @param {string} category
+   * @returns {Array}
+   */
+  _filterChunks(chunks, category) {
+    return chunks.filter(c => !c.category || c.category === category || c.category === 'general');
+  }
+
+  /**
+   * Load all knowledge chunks from MongoDB, using a short-lived in-memory cache
+   * to avoid a DB round-trip on every generation request.
+   *
+   * @returns {Promise<Array>}
+   */
+  async _loadChunks() {
+    if (this._cache && Date.now() < this._cacheExpiry) return this._cache;
+
+    const chunks = await KnowledgeChunk.find({}, 'title text category tags embedding').lean();
+    this._cache = chunks;
+    this._cacheExpiry = Date.now() + CACHE_TTL_MS;
+    console.log(`[RAGService] Loaded ${chunks.length} chunks from MongoDB`);
+    return chunks;
+  }
+
+  /**
+   * Invalidate the cache so the next retrieve() re-fetches from the DB.
+   * Call this after seeding new knowledge chunks.
+   */
+  clearCache() {
+    this._cache = null;
+    this._cacheExpiry = 0;
+    console.log('[RAGService] Cache cleared.');
+  }
+
+  /**
+   * Format ranked chunks into a text block the LLM can read directly.
+   *
+   * @param {Array} chunks - Array of scored chunk objects.
+   * @returns {string}
+   */
+  _buildContext(chunks) {
+    if (!chunks || !chunks.length) return '';
+
+    const entries = chunks.map((c, i) => {
+      const cat  = (c.category || 'general').toUpperCase();
+      const tags = (c.tags || []).join(', ');
+      return `[Knowledge ${i + 1} — ${cat}: ${c.title}]\n${c.text}\n[Tags: ${tags}]`;
     });
 
-    return `\n\n--- RETRIEVED KNOWLEDGE (RAG Context) ---
-The following are relevant UI patterns, templates, and guidelines retrieved from the knowledge base.
-Use these as grounding context to improve the accuracy and quality of your generated prototype:
-
-${formattedChunks.join('\n\n')}
---- END OF RETRIEVED KNOWLEDGE ---\n`;
+    return [
+      '\n\n--- RETRIEVED KNOWLEDGE (RAG Context) ---',
+      'Use these retrieved UI patterns to improve the accuracy of the generated prototype:',
+      '',
+      entries.join('\n\n'),
+      '--- END OF RETRIEVED KNOWLEDGE ---\n',
+    ].join('\n');
   }
 }
 
 export default new RAGService();
-

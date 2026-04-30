@@ -1,5 +1,5 @@
 /**
- * Feature Extractor — Pre-LLM pipeline step
+ * FeatureExtractor – Pre-LLM pipeline step.
  * Extracts domain + features from the user prompt using keyword matching.
  * Results feed into the LLM prompt so the model can reference concrete features.
  */
@@ -69,7 +69,7 @@ export class FeatureExtractor {
    * @returns {{ domain: string, features: string[], confidence: number }}
    */
   extract(prompt, sessionContext = null) {
-    const words = this.tokenize(prompt);
+    const words = this.splitWords(prompt);
 
     // 1. Determine domain
     let bestDomain = 'general';
@@ -133,7 +133,7 @@ export class FeatureExtractor {
     }
 
     // 4. Extract explicit features mentioned in the prompt (e.g. "with workout logging and progress tracking")
-    const explicitFeatures = this.extractExplicitFeatures(prompt);
+    const explicitFeatures = this.findFeatures(prompt);
     for (const ef of explicitFeatures) {
       if (!features.some(f => f.toLowerCase() === ef.toLowerCase())) {
         features.push(ef);
@@ -153,7 +153,7 @@ export class FeatureExtractor {
     features = features.slice(0, 10);
 
     const readableDomain = bestDomain === 'general'
-      ? this.inferDomainName(prompt)
+      ? this.guessDomain(prompt)
       : bestDomain.replace(/_/g, ' ');
 
     return {
@@ -164,9 +164,9 @@ export class FeatureExtractor {
   }
 
   /**
-   * Tokenize text into lowercase words
+   * Split text into lowercase tokens (simple word tokeniser).
    */
-  tokenize(text) {
+  splitWords(text) {
     return text.toLowerCase()
       .replace(/[^a-z0-9\s-]/g, ' ')
       .split(/\s+/)
@@ -174,10 +174,10 @@ export class FeatureExtractor {
   }
 
   /**
-   * Extract features explicitly stated in the prompt
-   * Looks for patterns like "with X, Y, and Z" or "features: X, Y"
+   * Find features explicitly stated in the prompt.
+   * Looks for patterns like "with X, Y, and Z" or "features: X, Y".
    */
-  extractExplicitFeatures(prompt) {
+  findFeatures(prompt) {
     const features = [];
 
     // Pattern: "with [feature1], [feature2], and [feature3]"
@@ -199,9 +199,9 @@ export class FeatureExtractor {
   }
 
   /**
-   * Infer a readable domain name when no predefined domain matches
+   * Build a readable domain name when no predefined domain matches.
    */
-  inferDomainName(text) {
+  guessDomain(text) {
     const words = text.toLowerCase().split(/\s+/);
     const appWords = ['app', 'platform', 'system', 'tool', 'dashboard', 'website', 'service', 'application'];
     const significant = words

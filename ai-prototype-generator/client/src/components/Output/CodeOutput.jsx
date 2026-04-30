@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { FileCode, Copy, Check, Download, Code2, Monitor, Maximize2, Minimize2 } from 'lucide-react'
+import { FileCode, Copy, Check, Download, Code2, Monitor, Maximize2, Minimize2, Archive } from 'lucide-react'
 
-function CodeOutput({ files, content }) {
+function CodeOutput({ files, content, sessionId }) {
   const [activeTab, setActiveTab] = useState('preview') // 'preview' or file index
   const [copied, setCopied] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportToast, setExportToast] = useState(null)
 
   // ── Dead Anchor Guardian ──────────────────────────────────────────────────
   // Injected into every iframe. Intercepts clicks on anchor tags or buttons
@@ -187,18 +189,68 @@ function CodeOutput({ files, content }) {
     URL.revokeObjectURL(url)
   }
 
-  const downloadAll = () => {
-    files.forEach((file) => {
-      const blob = new Blob([file.content], { type: 'text/plain' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = file.name || file.filename || 'file.txt'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    })
+  /**
+   * Export all generated files as a server-built ZIP archive.
+   * We call the backend /api/export/zip endpoint which uses 'archiver' to
+   * bundle files properly, then trigger a browser download of the blob.
+   *
+   * Fallback: if no sessionId is available (e.g. older session format),
+   * we fall back to downloading files individually.
+   */
+  const exportAsZipArchive = async () => {
+    if (isExporting) return
+
+    if (!sessionId) {
+      // Legacy fallback — individual file downloads
+      files.forEach((file) => {
+        const blob = new Blob([file.content], { type: 'text/plain' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = file.name || file.filename || 'file.txt'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      })
+      return
+    }
+
+    try {
+      setIsExporting(true)
+      setExportToast(null)
+
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5001'
+      const response = await fetch(`${apiBase}/api/export/zip`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err?.error?.message || `Export failed (${response.status})`)
+      }
+
+      // Stream the response blob and trigger a browser file download.
+      const zipBlob = await response.blob()
+      const downloadUrl = URL.createObjectURL(zipBlob)
+      const anchor = document.createElement('a')
+      anchor.href = downloadUrl
+      anchor.download = `proto-gen-export.zip`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(downloadUrl)
+
+      setExportToast({ type: 'success', message: 'ZIP exported successfully!' })
+    } catch (err) {
+      console.error('[CodeOutput] ZIP export error:', err)
+      setExportToast({ type: 'error', message: err.message || 'Export failed' })
+    } finally {
+      setIsExporting(false)
+      setTimeout(() => setExportToast(null), 4000)
+    }
   }
 
   const containerClass = isFullscreen
@@ -222,14 +274,36 @@ function CodeOutput({ files, content }) {
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
           <button
-            onClick={downloadAll}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 min-h-[44px] sm:min-h-0 px-3 py-1.5 text-xs font-bold text-dark-950 bg-neon-green hover:bg-neon-green/80 rounded-sm transition-colors uppercase tracking-widest"
+            id="zip-export-btn"
+            onClick={exportAsZipArchive}
+            disabled={isExporting}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 min-h-[44px] sm:min-h-0 px-3 py-1.5 text-xs font-bold text-dark-950 bg-neon-green hover:bg-neon-green/80 disabled:opacity-50 disabled:cursor-wait rounded-sm transition-colors uppercase tracking-widest"
           >
-            <Download className="w-4 h-4" />
-            Pull Artifacts
+            {isExporting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-dark-950/30 border-t-dark-950 rounded-full animate-spin" />
+                Packing...
+              </>
+            ) : (
+              <>
+                <Archive className="w-4 h-4" />
+                Export .zip
+              </>
+            )}
           </button>
         </div>
       </div>
+
+      {/* Export toast notification */}
+      {exportToast && (
+        <div className={`px-4 py-2 text-xs font-mono font-bold flex items-center gap-2 ${
+          exportToast.type === 'success'
+            ? 'bg-neon-green/10 border-b border-neon-green/30 text-neon-green'
+            : 'bg-red-900/20 border-b border-red-500/30 text-red-400'
+        }`}>
+          {exportToast.type === 'success' ? '✓' : '✗'} {exportToast.message}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex border-b border-dark-800 overflow-x-auto bg-dark-950/50 scrollbar-hide">

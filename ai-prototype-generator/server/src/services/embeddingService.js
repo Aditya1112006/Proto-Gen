@@ -1,92 +1,99 @@
-import { GoogleGenAI } from '@google/genai';
-import dotenv from 'dotenv';
+/**
+ * EmbeddingService - Builds keyword-frequency vectors for RAG retrieval.
+ *
+ * Instead of calling a paid dense-embedding API, we project text onto a
+ * curated 100-term UI/UX vocabulary and produce a normalised frequency vector.
+ * Cosine similarity between two such vectors gives a meaningful relevance score
+ * for the domain vocabulary this project uses.
+ *
+ * Upgrade path: swap toVector() with text-embedding-004 calls and getSimilarity()
+ * with MongoDB Atlas $vectorSearch when moving to production scale.
+ */
 
+import dotenv from 'dotenv';
 dotenv.config();
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-/**
- * Generate a "soft embedding" for a text string.
- *
- * Strategy: Since text-embedding-004 is not available for all Gemini API keys,
- * we use Gemini to extract a canonical set of semantic keywords from the text,
- * then represent the document as a frequency map of those keywords.
- *
- * For retrieval, we compute cosine similarity between keyword frequency vectors.
- * This is less powerful than dense embeddings, but it is fully functional and
- * 100% correct "RAG with vector retrieval" for demo/academic purposes.
- *
- * @param {string} text - The text to generate a soft embedding for
- * @returns {number[]} A 100-dimensional sparse keyword frequency vector
- */
-
-// Fixed vocabulary of 100 UI/UX semantic terms used as the vector space dimensions
+// ── 100-dimensional UI/UX vocabulary ─────────────────────────────────────────
 const VOCAB = [
-  'dashboard','sidebar','navigation','header','footer','layout','grid','card','modal','drawer',
-  'login','register','auth','authentication','password','form','input','button','checkbox','toggle',
-  'ecommerce','cart','product','listing','checkout','payment','order','filter','search','sort',
-  'food','delivery','restaurant','menu','booking','appointment','schedule','calendar','map','tracking',
-  'saas','landing','hero','cta','pricing','testimonial','feature','marketing','homepage','trial',
-  'table','pagination','data','row','column','export','bulk','select','edit','delete',
-  'dark','light','theme','color','contrast','background','shadow','gradient','glassmorphism','blur',
-  'mobile','responsive','tablet','desktop','hamburger','bottombar','drawer','breadcrumb','sticky','scroll',
-  'validation','error','success','warning','notification','toast','alert','feedback','accessibility','label',
-  'healthcare','medical','patient','doctor','vitals','appointment','report','dashboard','clinic','hospital',
+  // Layout & Navigation
+  'dashboard', 'sidebar', 'navigation', 'header', 'footer', 'layout', 'grid', 'card', 'modal', 'drawer',
+  // Auth & Forms
+  'login', 'register', 'auth', 'authentication', 'password', 'form', 'input', 'button', 'checkbox', 'toggle',
+  // E-commerce
+  'ecommerce', 'cart', 'product', 'listing', 'checkout', 'payment', 'order', 'filter', 'search', 'sort',
+  // Food & Booking
+  'food', 'delivery', 'restaurant', 'menu', 'booking', 'appointment', 'schedule', 'calendar', 'map', 'tracking',
+  // SaaS & Marketing
+  'saas', 'landing', 'hero', 'cta', 'pricing', 'testimonial', 'feature', 'marketing', 'homepage', 'trial',
+  // Data & Tables
+  'table', 'pagination', 'data', 'row', 'column', 'export', 'bulk', 'select', 'edit', 'delete',
+  // Visual & Themes
+  'dark', 'light', 'theme', 'color', 'contrast', 'background', 'shadow', 'gradient', 'glassmorphism', 'blur',
+  // Responsive & Mobile
+  'mobile', 'responsive', 'tablet', 'desktop', 'hamburger', 'bottombar', 'breadcrumb', 'sticky', 'scroll', 'swipe',
+  // Feedback & Accessibility
+  'validation', 'error', 'success', 'warning', 'notification', 'toast', 'alert', 'feedback', 'accessibility', 'label',
+  // Healthcare & Domain-Specific
+  'healthcare', 'medical', 'patient', 'doctor', 'vitals', 'report', 'clinic', 'hospital', 'wellness', 'fitness',
 ];
 
-const VOCAB_INDEX = Object.fromEntries(VOCAB.map((w, i) => [w, i]));
+// Pre-build the term→index map so lookups are O(1) at runtime.
+const TERM_INDEX = Object.fromEntries(VOCAB.map((term, i) => [term, i]));
+const DIMS = VOCAB.length; // 100
 
 /**
- * Extract semantic keywords from text using Gemini, then project onto our vocabulary.
- * @param {string} text
- * @returns {number[]} 100-dim frequency vector
+ * Convert a text string into a normalised 100-dim frequency vector.
+ *
+ * @param {string} text - Any raw text to vectorise.
+ * @returns {Promise<number[]>} Unit-length vector (L2-normalised).
  */
-export async function generateEmbedding(text) {
+export async function toVector(text) {
   if (!text || typeof text !== 'string') {
-    throw new Error('[EmbeddingService] text must be a non-empty string');
+    throw new Error('[EmbeddingService] toVector() requires a non-empty string');
   }
-
-  // Fast path: direct keyword extraction without an LLM call (TF-based)
-  // This is used during seeding to avoid quota issues.
-  return _buildKeywordVector(text.toLowerCase());
+  return _vectorize(text.toLowerCase());
 }
 
 /**
- * Build a 100-dim vector by counting vocabulary term occurrences.
- * Normalize to unit length for cosine similarity.
- */
-function _buildKeywordVector(text) {
-  const vector = new Array(100).fill(0);
-
-  for (const [word, idx] of Object.entries(VOCAB_INDEX)) {
-    // Count occurrences of this term (and common synonyms)
-    const regex = new RegExp(`\\b${word}\\b`, 'gi');
-    const matches = text.match(regex);
-    if (matches) {
-      vector[idx] = matches.length;
-    }
-  }
-
-  // L2 normalize
-  const norm = Math.sqrt(vector.reduce((s, v) => s + v * v, 0));
-  return norm > 0 ? vector.map(v => v / norm) : vector;
-}
-
-/**
- * Compute cosine similarity between two vectors.
+ * Compute cosine similarity between two equal-length vectors.
+ * Returns a value in [0, 1] — higher means more similar.
+ *
  * @param {number[]} a
  * @param {number[]} b
- * @returns {number} similarity in [0, 1]
+ * @returns {number}
  */
-export function cosineSimilarity(a, b) {
+export function getSimilarity(a, b) {
   if (!a || !b || a.length !== b.length) return 0;
-  let dot = 0, normA = 0, normB = 0;
+
+  let dot = 0, magA = 0, magB = 0;
   for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
+    dot  += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
   }
-  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  const denom = Math.sqrt(magA) * Math.sqrt(magB);
   return denom > 0 ? dot / denom : 0;
 }
 
+/**
+ * Internal: count term occurrences and L2-normalise the result.
+ * Word-boundary regex avoids partial matches (e.g. "cart" vs "cartoon").
+ *
+ * @param {string} text - Already lowercased text.
+ * @returns {number[]}
+ */
+function _vectorize(text) {
+  const vec = new Array(DIMS).fill(0);
+
+  for (const [term, idx] of Object.entries(TERM_INDEX)) {
+    const hits = text.match(new RegExp(`\\b${term}\\b`, 'gi'));
+    if (hits) vec[idx] = hits.length;
+  }
+
+  // L2 normalisation makes the vector unit-length so cosine measures angle, not magnitude.
+  const norm = Math.sqrt(vec.reduce((sum, v) => sum + v * v, 0));
+  return norm > 0 ? vec.map(v => v / norm) : vec;
+}
+
+// Backward-compat alias for seed scripts that still call generateEmbedding().
+export const generateEmbedding = toVector;

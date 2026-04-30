@@ -1,258 +1,247 @@
-// Domain detection using keyword extraction and semantic similarity
+/**
+ * DomainClassifier - Identifies the app domain of a user prompt.
+ *
+ * The classifier answers two questions on every request:
+ *   1. What domain does this prompt belong to?
+ *   2. Is it a refinement of the current session (same domain) or a
+ *      completely new idea (domain shift)?
+ *
+ * Same domain → merge prompts, feed LLM the accumulated context.
+ * Domain shift → preserve old session, open a fresh one.
+ *
+ * Classification is entirely heuristic (no API call) for first prompts.
+ * Subsequent prompts use a three-condition test: keyword overlap, domain
+ * topic divergence, and absence of modification-intent verbs.
+ */
+
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 dotenv.config();
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-export class DomainDetector {
-  constructor() {
-    // Common domain keywords for quick matching
-    this.domainKeywords = {
-      'food_delivery': ['food', 'delivery', 'restaurant', 'order', 'meal', 'grocery', 'cooking', 'recipe', 'menu', 'driver'],
-      'ecommerce': ['shop', 'store', 'product', 'cart', 'checkout', 'payment', 'inventory', 'order', 'shipping'],
-      'social_media': ['social', 'post', 'feed', 'follow', 'like', 'comment', 'share', 'profile', 'messaging', 'chat'],
-      'finance': ['bank', 'finance', 'money', 'payment', 'transaction', 'budget', 'investment', 'crypto', 'wallet', 'account'],
-      'health_fitness': ['health', 'fitness', 'workout', 'exercise', 'gym', 'medical', 'doctor', 'patient', 'wellness', 'tracking'],
-      'education': ['learn', 'course', 'student', 'teacher', 'class', 'lesson', 'quiz', 'education', 'school', 'training'],
-      'productivity': ['task', 'todo', 'project', 'calendar', 'schedule', 'note', 'collaboration', 'team', 'workflow'],
-      'entertainment': ['game', 'video', 'movie', 'music', 'streaming', 'entertainment', 'media', 'player'],
-      'travel': ['travel', 'trip', 'booking', 'hotel', 'flight', 'vacation', 'destination', 'tour'],
-      'real_estate': ['property', 'real estate', 'apartment', 'house', 'rent', 'lease', 'mortgage', 'agent']
-    };
-    this.threshold = 0.3; // Similarity threshold for domain matching
-  }
+// ── Domain keyword map ────────────────────────────────────────────────────────
+const DOMAINS = {
+  food_delivery:  ['food', 'delivery', 'restaurant', 'order', 'meal', 'grocery', 'cooking', 'recipe', 'menu', 'driver'],
+  ecommerce:      ['shop', 'store', 'product', 'cart', 'checkout', 'payment', 'inventory', 'order', 'shipping'],
+  social_media:   ['social', 'post', 'feed', 'follow', 'like', 'comment', 'share', 'profile', 'messaging', 'chat'],
+  finance:        ['bank', 'finance', 'money', 'payment', 'transaction', 'budget', 'investment', 'crypto', 'wallet', 'account'],
+  health_fitness: ['health', 'fitness', 'workout', 'exercise', 'gym', 'medical', 'doctor', 'patient', 'wellness', 'tracking'],
+  education:      ['learn', 'course', 'student', 'teacher', 'class', 'lesson', 'quiz', 'education', 'school', 'training'],
+  productivity:   ['task', 'todo', 'project', 'calendar', 'schedule', 'note', 'collaboration', 'team', 'workflow'],
+  entertainment:  ['game', 'video', 'movie', 'music', 'streaming', 'entertainment', 'media', 'player'],
+  travel:         ['travel', 'trip', 'booking', 'hotel', 'flight', 'vacation', 'destination', 'tour'],
+  real_estate:    ['property', 'real estate', 'apartment', 'house', 'rent', 'lease', 'mortgage', 'agent'],
+};
 
+// Verbs that indicate the user wants to CHANGE the existing prototype.
+// If these are present, a domain shift is very unlikely.
+const MOD_VERBS = /\b(add|change|update|modify|improve|fix|remove|tweak|adjust|make|set|turn)\b/i;
+
+const OVERLAP_THRESHOLD    = 0.15;  // below this + no mod-verbs = domain shift
+const CONFIDENCE_THRESHOLD = 0.3;   // minimum score to assign a known domain
+
+export class DomainClassifier {
   /**
-   * Extract keywords from a text string
+   * Determine if a new prompt continues the current session or starts a new one.
+   *
+   * @param {string} prompt         Raw user prompt (before enhancement).
+   * @param {string|null} current   Current session domain, or null for first prompts.
+   * @returns {Promise<{ isSameDomain: boolean, domain: string, score: number, message: string }>}
    */
-  extractKeywords(text) {
-    const words = text.toLowerCase()
-      .replace(/[^\w\s]/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length > 2);
-
-    // Remove common stop words
-    const stopWords = new Set(['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use', 'with', 'have', 'this', 'will', 'your', 'from', 'they', 'know', 'want', 'been', 'good', 'much', 'some', 'time', 'very', 'when', 'come', 'here', 'just', 'like', 'long', 'make', 'many', 'over', 'such', 'take', 'than', 'them', 'well', 'were']);
-
-    return [...new Set(words.filter(w => !stopWords.has(w)))];
-  }
-
-  /**
-   * Calculate similarity between two keyword sets
-   */
-  calculateSimilarity(keywords1, keywords2) {
-    const set1 = new Set(keywords1);
-    const set2 = new Set(keywords2);
-
-    const intersection = [...set1].filter(x => set2.has(x));
-    const union = [...new Set([...set1, ...set2])];
-
-    // Jaccard similarity
-    const jaccard = union.length === 0 ? 0 : intersection.length / union.length;
-
-    // Also check for semantic overlap with domain keywords
-    let domainOverlap = 0;
-    for (const [domain, domainWords] of Object.entries(this.domainKeywords)) {
-      const matches1 = keywords1.filter(k => domainWords.includes(k)).length;
-      const matches2 = keywords2.filter(k => domainWords.includes(k)).length;
-      if (matches1 > 0 && matches2 > 0) {
-        domainOverlap += Math.min(matches1, matches2) / Math.max(matches1, matches2);
-      }
-    }
-
-    // Weighted combination
-    return (jaccard * 0.6) + (Math.min(domainOverlap, 1) * 0.4);
-  }
-
-  /**
-   * Infer domain from prompt text
-   */
-  inferDomain(text) {
-    const keywords = this.extractKeywords(text);
-    let bestDomain = 'general';
-    let bestScore = 0;
-
-    for (const [domain, domainWords] of Object.entries(this.domainKeywords)) {
-      const matches = keywords.filter(k => domainWords.includes(k)).length;
-      
-      // 1. Percentage of user's core keywords that belong to this domain
-      const userMatchPct = keywords.length > 0 ? (matches / keywords.length) : 0;
-      // 2. Strong absolute signal: 2+ keyword matches strongly implies the domain Regardless of prompt length
-      const absoluteScore = matches >= 2 ? 0.4 + (matches * 0.1) : 0;
-      
-      const score = Math.max(userMatchPct, absoluteScore);
-
-      if (score > bestScore && score >= this.threshold) {
-        bestScore = score;
-        bestDomain = domain;
-      }
-    }
-
-    // Generate a readable domain name
-    const domainName = bestDomain === 'general'
-      ? this.generateDomainName(text)
-      : bestDomain.replace(/_/g, ' ');
-
-    return { name: domainName, score: bestScore };
-  }
-
-  /**
-   * Generate a readable domain name from text
-   */
-  generateDomainName(text) {
-    // Extract the main nouns to create a domain name
-    const words = text.toLowerCase().split(/\s+/);
-    const productTypes = ['app', 'platform', 'system', 'tool', 'dashboard', 'website', 'service', 'application'];
-
-    // Find if there's a product type mentioned
-    const type = words.find(w => productTypes.includes(w)) || 'app';
-
-    // Get the first 2-3 significant words before the product type
-    const significant = words.filter(w => w.length > 3 && !productTypes.includes(w)).slice(0, 2);
-
-    return [...significant, type].join(' ');
-  }
-
-  /**
-   * Main detection method
-   * Returns { isSameDomain: boolean, domain: string, score: number }
-   */
-  async detect(prompt, currentDomain) {
+  async detect(prompt, current) {
     if (prompt.includes('FORCE_CHANGE')) {
-      return {
-        isSameDomain: false,
-        domain: 'forced_domain',
-        oldDomain: currentDomain,
-        message: 'Forced domain change'
-      };
+      return { isSameDomain: false, domain: 'forced_domain', oldDomain: current, message: 'Forced via debug token.' };
     }
 
-    console.log('\n=== DOMAIN DETECTOR ===');
-    console.log('Prompt:', prompt.substring(0, 80));
-    console.log('Current domain:', currentDomain);
+    console.log('\n=== DOMAIN CLASSIFIER ===');
+    console.log('Prompt preview:', prompt.substring(0, 80));
+    console.log('Current domain:', current);
 
-    if (!currentDomain) {
-      // First prompt — use local heuristic (NO API call needed!)
-      const inferred = this.inferDomain(prompt);
-      console.log('First prompt → inferred domain:', inferred.name, 'score:', inferred.score);
-      return {
-        isSameDomain: true,
-        domain: inferred.name,
-        score: inferred.score,
-        message: `New prototype created in domain: ${inferred.name}`
-      };
+    // First prompt – no existing domain to compare against.
+    if (!current) {
+      const inferred = this._inferDomain(prompt);
+      console.log('First prompt → inferred:', inferred.name, '(score:', inferred.score, ')');
+      return { isSameDomain: true, domain: inferred.name, score: inferred.score, message: `Session opened in domain: "${inferred.name}"` };
     }
 
     try {
-      // Heuristic Matcher 
-      const newKeywords = this.extractKeywords(prompt);
-      const currentKeywords = this.extractKeywords(currentDomain);
-      
-      const domainWords = this.domainKeywords[currentDomain.toLowerCase().replace(/\s+/g, '_')] || [];
-      const referenceKeywords = [...new Set([...currentKeywords, ...domainWords])];
+      const newKeywords = this._getKeywords(prompt);
+      const curKeywords = this._getDomainWords(current);
+      const overlap     = this._getOverlapScore(newKeywords, curKeywords);
+      const newDomain   = this._inferDomain(prompt);
+      const isModifying = MOD_VERBS.test(prompt);
+      const isDifferent = this._isNewDomain(newDomain.name, current);
 
-      const similarity = this.calculateSimilarity(newKeywords, referenceKeywords);
+      console.log('Overlap score:', overlap.toFixed(3));
+      console.log('Inferred domain:', newDomain.name, '| Mod-intent:', isModifying);
 
-      const newDomainInference = this.inferDomain(prompt);
-      const currentDomainNormalized = currentDomain.toLowerCase().replace(/\s+/g, '_');
-      const newDomainNormalized = newDomainInference.name.toLowerCase().replace(/\s+/g, '_');
-
-      const hasModifyIntent = /\b(add|change|update|modify|improve|fix|remove|tweak|adjust)\b/i.test(prompt);
-      const isDifferentDomain = newDomainNormalized !== currentDomainNormalized;
-      const isLowOverlap = similarity < 0.15;
-
-      console.log('New keywords:', newKeywords);
-      console.log('Reference keywords:', referenceKeywords);
-      console.log('Similarity:', similarity);
-      console.log('New domain inference:', newDomainInference.name, '(score:', newDomainInference.score, ')');
-      console.log('Current normalized:', currentDomainNormalized);
-      console.log('New normalized:', newDomainNormalized);
-      console.log('isDifferentDomain:', isDifferentDomain, '| isLowOverlap:', isLowOverlap, '| hasModifyIntent:', hasModifyIntent);
-
-      if (isDifferentDomain && isLowOverlap && !hasModifyIntent) {
-        console.log('>>> DOMAIN CHANGE DETECTED! isSameDomain = false');
-        return {
-          isSameDomain: false,
-          domain: newDomainInference.name,
-          oldDomain: currentDomain,
-          score: newDomainInference.score,
-          message: `Domain changed from "${currentDomain}" to "${newDomainInference.name}". Previous prototype cleared.`
-        };
+      // Three-condition domain shift: topic different + low overlap + no modification verbs.
+      if (isDifferent && overlap < OVERLAP_THRESHOLD && !isModifying) {
+        console.log('>>> DOMAIN SHIFT');
+        return { isSameDomain: false, domain: newDomain.name, oldDomain: current, score: newDomain.score, message: `Shifted from "${current}" to "${newDomain.name}". Starting new session.` };
       }
 
-      console.log('>>> Same domain, merging prompt.');
-      return {
-        isSameDomain: true,
-        domain: currentDomain,
-        score: similarity,
-        message: `Prompt merged into current domain: ${currentDomain}`
-      };
+      console.log('>>> Same domain – merging into current session.');
+      return { isSameDomain: true, domain: current, score: overlap, message: `Prompt merged into "${current}" session.` };
 
-    } catch (error) {
-      console.error('Heuristic intent detection error:', error);
-      return {
-        isSameDomain: true,
-        domain: currentDomain,
-        score: 0.5,
-        message: `Prompt conservatively merged into current domain: ${currentDomain}`
-      };
+    } catch (err) {
+      console.error('[DomainClassifier] Error:', err.message);
+      // On failure, conservatively stay in the current domain.
+      return { isSameDomain: true, domain: current, score: 0.5, message: `Kept domain "${current}" due to error.` };
     }
   }
 
   /**
-   * Fallback LLM-based domain detection (For first prompt)
+   * Score a prompt against all known domains and return the best match.
+   *
+   * @param {string} prompt
+   * @returns {{ name: string, score: number }}
    */
-  async detectWithLLM(prompt) {
-    // Use lightweight models for domain classification to preserve quota on heavier models
-    const classificationModels = [
-      'gemini-2.0-flash-lite',
-      'gemini-flash-lite-latest',
-      'gemini-2.5-flash',
-    ];
+  _inferDomain(prompt) {
+    const words = this._getKeywords(prompt);
+    let topDomain = 'general', topScore = 0;
 
-    const systemInstruction = 'You are a domain classifier. Given a user prompt, classify it into one of these domains: food_delivery, ecommerce, social_media, finance, health_fitness, education, productivity, entertainment, travel, real_estate, or general. Respond with JSON: { "domain": "domain_name", "confidence": 0.0-1.0 }';
+    for (const [key, kws] of Object.entries(DOMAINS)) {
+      const matches  = words.filter(w => kws.includes(w)).length;
+      const coverage = words.length > 0 ? matches / words.length : 0;
+      const absolute = matches >= 2 ? 0.4 + matches * 0.1 : 0;
+      const score    = Math.max(coverage, absolute);
 
-    for (const model of classificationModels) {
+      if (score > topScore && score >= CONFIDENCE_THRESHOLD) {
+        topScore = score;
+        topDomain = key;
+      }
+    }
+
+    const name = topDomain === 'general'
+      ? this._makeName(prompt)
+      : topDomain.replace(/_/g, ' ');
+
+    return { name, score: topScore };
+  }
+
+  /**
+   * Check if two domain names represent different application categories.
+   *
+   * @param {string} a
+   * @param {string} b
+   * @returns {boolean}
+   */
+  _isNewDomain(a, b) {
+    const norm = d => d.toLowerCase().replace(/[\s_-]+/g, '_');
+    return norm(a) !== norm(b);
+  }
+
+  /**
+   * Compute a Jaccard-weighted similarity score between two keyword sets,
+   * boosted by co-occurrence within the same predefined domain vocabulary.
+   *
+   * @param {string[]} a
+   * @param {string[]} b
+   * @returns {number} Score in [0, 1].
+   */
+  _getOverlapScore(a, b) {
+    const setA = new Set(a), setB = new Set(b);
+    const inter = [...setA].filter(w => setB.has(w)).length;
+    const union = new Set([...setA, ...setB]).size;
+    const jaccard = union === 0 ? 0 : inter / union;
+
+    let bonus = 0;
+    for (const kws of Object.values(DOMAINS)) {
+      const ma = a.filter(w => kws.includes(w)).length;
+      const mb = b.filter(w => kws.includes(w)).length;
+      if (ma > 0 && mb > 0) bonus += Math.min(ma, mb) / Math.max(ma, mb);
+    }
+
+    return jaccard * 0.6 + Math.min(bonus, 1) * 0.4;
+  }
+
+  /**
+   * Expand a domain name into its full keyword set.
+   * Used when building the reference keyword set for the current session.
+   *
+   * @param {string} domain
+   * @returns {string[]}
+   */
+  _getDomainWords(domain) {
+    const key = domain.toLowerCase().replace(/\s+/g, '_');
+    const predefined = DOMAINS[key] || [];
+    return [...new Set([...this._getKeywords(domain), ...predefined])];
+  }
+
+  /**
+   * Tokenise text into lowercase, de-stopped signal keywords.
+   *
+   * @param {string} text
+   * @returns {string[]}
+   */
+  _getKeywords(text) {
+    const stop = new Set([
+      'the','and','for','are','but','not','you','all','can','had','was',
+      'one','our','out','get','has','him','how','new','now','see','two',
+      'way','who','did','its','let','put','say','too','use','with','have',
+      'this','will','your','from','they','know','want','been','good','much',
+      'some','time','when','come','just','like','long','make','many','over',
+      'take','than','them','well','were','that','also','into','more','here',
+      'what','app','build','create','need','system','platform','tool','website',
+    ]);
+    return text.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/)
+      .filter(w => w.length > 2 && !stop.has(w));
+  }
+
+  /**
+   * Build a short domain name from a free-form prompt when no predefined
+   * domain reaches the confidence threshold.
+   *
+   * @param {string} prompt
+   * @returns {string}
+   */
+  _makeName(prompt) {
+    const skip = new Set(['app', 'platform', 'system', 'tool', 'dashboard', 'website', 'service', 'application',
+                          'build', 'create', 'make', 'want', 'need', 'like', 'that', 'with', 'this', 'from', 'have']);
+    const words = prompt.toLowerCase().split(/\s+/)
+      .filter(w => w.length > 3 && !skip.has(w))
+      .slice(0, 2);
+    return words.length > 0 ? words.join(' ') : 'general';
+  }
+
+  /**
+   * Fallback: use Gemini to classify the domain when heuristics are insufficient.
+   * Uses the lightest available model to conserve API quota.
+   *
+   * @param {string} prompt
+   * @returns {Promise<{ domain: string, score: number }>}
+   */
+  async detectWithAI(prompt) {
+    const models = ['gemini-2.0-flash-lite', 'gemini-flash-lite-latest', 'gemini-2.5-flash'];
+    const sysInstruction = `You are a domain classifier. Given a user prompt, classify it into one of: ${Object.keys(DOMAINS).join(', ')}, or "general". Respond with JSON: { "domain": "domain_name", "confidence": 0.0-1.0 }`;
+
+    for (const model of models) {
       try {
-        console.log(`[DomainDetector] Classifying with model: ${model}`);
-        const response = await ai.models.generateContent({
+        const res = await ai.models.generateContent({
           model,
-          contents: `Classify this prompt: "${prompt}"`,
-          config: {
-            systemInstruction,
-            temperature: 0.2,
-            maxOutputTokens: 100,
-            responseMimeType: "application/json",
-          }
+          contents: `Classify: "${prompt}"`,
+          config: { systemInstruction: sysInstruction, temperature: 0.2, maxOutputTokens: 100, responseMimeType: 'application/json' },
         });
+        const text  = res.text;
+        const start = text.indexOf('{'), end = text.lastIndexOf('}') + 1;
+        const data  = JSON.parse(text.substring(start, end) || text);
+        return { domain: data.domain || 'general', score: data.confidence || 0.5 };
 
-        const responseText = response.text;
-        const jsonStr = responseText.substring(responseText.indexOf('{'), responseText.lastIndexOf('}') + 1);
-        const result = JSON.parse(jsonStr || responseText);
-        return {
-          domain: result.domain || 'general',
-          score: result.confidence || 0.5
-        };
-      } catch (error) {
-        const isRetryable = error.message?.includes('429')
-          || error.message?.includes('503')
-          || error.message?.includes('RESOURCE_EXHAUSTED')
-          || error.message?.includes('404')
-          || error.message?.includes('not found')
-          || error.message?.includes('NOT_FOUND');
-
-        if (isRetryable) {
-          console.warn(`[DomainDetector] ⚠ Model ${model} overloaded, trying next...`);
-          continue;
-        }
-        console.error(`[DomainDetector] LLM domain detection error (${model}):`, error.message);
-        break; // Non-retryable error, fall through to default
+      } catch (err) {
+        const retryable = err.message?.toLowerCase().match(/429|503|resource_exhausted|not_found/);
+        if (retryable) { console.warn(`[DomainClassifier] ${model} busy, trying next...`); continue; }
+        console.error(`[DomainClassifier] detectWithAI error (${model}):`, err.message);
+        break;
       }
     }
 
     return { domain: 'general', score: 0.5 };
   }
+
+  // Backward-compat alias for code that still calls classifyWithLLM()
+  async classifyWithLLM(prompt) { return this.detectWithAI(prompt); }
 }
 
-export default new DomainDetector();
+export default new DomainClassifier();

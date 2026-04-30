@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import prototypeRoutes from './routes/prototype.js';
 import authRoutes from './routes/auth.js';
+import exportRoutes from './routes/export.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import connectDB from './config/db.js';
 
@@ -82,7 +83,8 @@ app.use(globalLimiter);
 // ─── ROUTES ───────────────────────────────────────────────────────────────────
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/prototype', prototypeRoutes);
-// Apply extra limiter only to generation endpoint
+app.use('/api/export', exportRoutes);
+// Apply extra rate limiting on the generation endpoint to prevent API abuse
 app.use('/api/prototype/generate', generateLimiter);
 
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
@@ -90,7 +92,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    version: '2.0.0',
+    version: '3.0.0',
     environment: process.env.NODE_ENV || 'development'
   });
 });
@@ -100,8 +102,9 @@ app.use(errorHandler);
 
 // ─── START ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`\n🚀 Proto-Gen Server v2.0 running on port ${PORT}`);
+  console.log(`\n🚀 Proto-Gen Server v3.0 running on port ${PORT}`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`   Auth: JWT (7d expiry)`);
-  console.log(`   Rate limiting: enabled\n`);
+  console.log(`   Rate limiting: enabled`);
+  console.log(`   Export: ZIP download enabled via /api/export/zip\n`);
 });

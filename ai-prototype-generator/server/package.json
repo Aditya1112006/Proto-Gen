@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "^1.45.0",
     "ai-prototype-generator": "file:..",
+    "archiver": "^7.0.1",
     "bcryptjs": "^3.0.3",
     "compromise": "^14.10.1",
     "cors": "^2.8.5",

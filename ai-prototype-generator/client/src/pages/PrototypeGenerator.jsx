@@ -223,6 +223,7 @@ function PrototypeGenerator() {
               <CodeOutput
                 files={currentPrototype.metadata.files}
                 content={currentPrototype.content}
+                sessionId={sessionId}
               />
             )}
 

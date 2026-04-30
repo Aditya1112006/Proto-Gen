@@ -86,14 +86,14 @@ export function validatePrototype(data, context = {}) {
 
   // --- Layout (MUST be a nested object, never a string) ---
   if (!content.layout || typeof content.layout !== 'object' || Array.isArray(content.layout)) {
-    content.layout = buildDefaultLayout(content.title);
+    content.layout = makeLayout(content.title);
     fixes.push('Built structured layout hierarchy (was missing or not an object)');
   } else {
     // Validate that it's actually hierarchical (at least one nested key)
     const values = Object.values(content.layout);
     const hasStructure = values.some(v => typeof v === 'object' && v !== null);
     if (!hasStructure) {
-      content.layout = buildDefaultLayout(content.title);
+      content.layout = makeLayout(content.title);
       fixes.push('Rebuilt layout hierarchy (was flat)');
     }
   }
@@ -127,10 +127,7 @@ export function validatePrototype(data, context = {}) {
   return { validated, fixes };
 }
 
-/**
- * Build a sensible default layout hierarchy based on the title/domain
- */
-function buildDefaultLayout(title) {
+function makeLayout(title) {
   const appName = title || 'App';
   return {
     [appName]: {

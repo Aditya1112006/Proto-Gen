@@ -9,9 +9,9 @@ An AI-powered prototype generator for designers and non-technical founders. Desc
 - **RAG Knowledge Retrieval**: Grounds AI responses in curated UI/UX knowledge via a MongoDB vector similarity search for superior, standard-compliant designs.
 - **Incremental Updates**: Follow-up prompts act as delta changes, intelligently modifying only the requested elements without regenerating the entire prototype from scratch.
 - **Natural Language to Prototype**: Describe your idea and get structured output (Workflow, Architecture, Requirements).
-- **Two Generation Modes**:
-  - *Workflow Only*: User flows, requirements, and acceptance criteria.
-  - *Workflow + Code*: Everything above plus fully runnable HTML/CSS/JS or React code.
+- **Generation Modes**:
+  - *Workflow*: User flows, requirements, and acceptance criteria.
+  - *Code*: Fully runnable HTML/CSS/JS or React code.
 - **Live Sandbox Preview**: Instantly preview generated code artifacts in a secure iframe sandbox.
 - **Terminal Aesthetic & UX**: A custom, fully mobile-responsive "Dark Developer" UI featuring neon accents, glassmorphism, and a sticky build status navigation that persists while you scroll.
 

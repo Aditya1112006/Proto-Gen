@@ -33,9 +33,7 @@ export default function Header({ title, data, wireframe }) {
     <header className="w-full bg-dark-900/80 backdrop-blur-xl border-b border-neon-green/20 px-5 h-16 flex items-center justify-between shadow-sm z-40 sticky top-0">
       {/* Logo + title */}
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 bg-neon-green/10 border border-neon-green/40 rounded-lg flex items-center justify-center shadow-md shadow-neon-green/10">
-          <span className="text-neon-green font-bold text-sm font-mono">P</span>
-        </div>
+        <img src="/logo.png" alt="Proto-Gen Logo" className="w-12 h-12 object-contain" />
         <span className="font-bold text-gray-200 text-lg tracking-tight font-mono">
           Proto<span className="text-neon-green">-Gen</span>
         </span>

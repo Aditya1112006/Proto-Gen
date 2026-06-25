@@ -228,7 +228,7 @@ async function seed() {
   console.log(`\n📌 NEXT STEP: Create a Vector Search index in MongoDB Atlas UI:`);
   console.log(`   Collection : knowledge_chunks`);
   console.log(`   Index name : vector_index`);
-  console.log(`   Field      : embedding (768 dims, cosine similarity)\n`);
+  console.log(`   Field      : embedding (100 dims, cosine similarity)\n`);
 
   await mongoose.disconnect();
 }

@@ -7,6 +7,8 @@ import authRoutes from './routes/auth.js';
 import exportRoutes from './routes/export.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import connectDB from './config/db.js';
+import Redis from 'ioredis';
+import { RedisStore } from 'rate-limit-redis';
 
 dotenv.config();
 
@@ -47,12 +49,26 @@ const corsOptions = {
 };
 
 // ─── RATE LIMITING ───────────────────────────────────────────────────────────
+let rateLimitStore;
+if (process.env.REDIS_URL) {
+  try {
+    const redisClient = new Redis(process.env.REDIS_URL);
+    rateLimitStore = new RedisStore({
+      sendCommand: (...args) => redisClient.call(...args),
+    });
+    console.log('✓ Rate limiting Redis store configured.');
+  } catch (err) {
+    console.error('✗ Failed to configure Redis rate limiting store:', err.message);
+  }
+}
+
 // Global limiter: 200 requests per 15 minutes per IP
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
+  store: rateLimitStore,
   message: { success: false, error: { message: 'Too many requests. Please try again later.', details: 'rate_limited' } }
 });
 
@@ -62,6 +78,7 @@ const authLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  store: rateLimitStore,
   message: { success: false, error: { message: 'Too many auth attempts. Please wait 15 minutes.', details: 'rate_limited' } }
 });
 
@@ -71,6 +88,7 @@ const generateLimiter = rateLimit({
   max: 10, // 10 generations per minute
   standardHeaders: true,
   legacyHeaders: false,
+  store: rateLimitStore,
   message: { success: false, error: { message: 'Generation limit reached. Please wait a moment.', details: 'rate_limited' } }
 });
 
@@ -105,6 +123,15 @@ app.listen(PORT, () => {
   console.log(`\n🚀 Proto-Gen Server v3.0 running on port ${PORT}`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`   Auth: JWT (7d expiry)`);
-  console.log(`   Rate limiting: enabled`);
+  console.log(`   Rate limiting: ${rateLimitStore ? 'Redis-backed' : 'in-memory (default)'}`);
   console.log(`   Export: ZIP download enabled via /api/export/zip\n`);
+
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.REDIS_URL) {
+      console.warn('⚠️ WARNING: No REDIS_URL configured. Server is running in production with in-memory rate limiting.');
+    }
+    if (process.env.JWT_SECRET === 'protogen_super_secret_jwt_key_change_in_production_2024') {
+      console.warn('⚠️ WARNING: Using default JWT secret in production! Please configure a secure JWT_SECRET environment variable.');
+    }
+  }
 });

@@ -1,5 +1,5 @@
 async function runTest() {
-  const url = 'http://localhost:5001/api/prototype/generate';
+  const url = 'http://127.0.0.1:5001/api/prototype/generate';
   
   console.log('==========================================');
   console.log('STEP 1: Initial Prompt (Food Delivery App)');

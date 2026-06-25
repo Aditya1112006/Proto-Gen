@@ -18,10 +18,11 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // Lightweight models tried in order – fast and cheap for this pre-processing step.
 const MODELS = [
-  process.env.GEMINI_MODEL?.trim().toLowerCase() || 'gemini-3.1-flash-lite-preview',
-  'gemini-3.1-flash-lite-preview',
-  'gemini-3-flash',
+  process.env.GEMINI_MODEL?.trim().toLowerCase() || 'gemini-2.5-flash',
   'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
 ];
 
 const RETRY_CODES = new Set([429, 503, 500, 404]);
@@ -97,7 +98,26 @@ async function expandPrompt(rawPrompt, context = null) {
         || msg.includes('overloaded') || msg.includes('resource_exhausted') || msg.includes('not found');
 
       if (retry && i < MODELS.length - 1) {
-        console.warn(`[PromptExpander] ⚠ "${model}" failed (${status || msg}). Trying next...`);
+        // Parse suggested wait time from Gemini error
+        let waitMs = 2000;
+        try {
+          const errBody = JSON.parse(err.message || '{}');
+          const retryInfo = errBody?.error?.details?.find(d => d['@type']?.includes('RetryInfo'));
+          if (retryInfo?.retryDelay) {
+            const seconds = parseFloat(retryInfo.retryDelay);
+            if (!isNaN(seconds)) waitMs = Math.min(seconds * 1000, 15000);
+          }
+        } catch (_) { /* use default */ }
+
+        const isDailyExhausted = msg.includes('per_day') ||
+          (msg.includes('"limit":0') && msg.includes('per_project'));
+
+        if (isDailyExhausted) {
+          console.warn(`[PromptExpander] ⚠ "${model}" daily quota exhausted. Skipping...`);
+        } else {
+          console.warn(`[PromptExpander] ⚠ "${model}" failed (${status}). Waiting ${Math.round(waitMs/1000)}s...`);
+          await new Promise(r => setTimeout(r, waitMs));
+        }
         continue;
       }
 

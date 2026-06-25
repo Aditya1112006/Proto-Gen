@@ -118,7 +118,9 @@ export const PrototypeProvider = ({ children }) => {
 
       let data;
       try {
-        data = await generatePrototype(prompt, mode, sessionId);
+        // Use the ref (not state) to guarantee the freshest session ID.
+        // React state captured in this closure may be stale on follow-up calls.
+        data = await generatePrototype(prompt, mode, sessionIdRef.current);
       } catch (e) {
         const errMsg = e.response?.data?.error?.message || e.message;
         throw new Error(errMsg || "Generation failed")
@@ -219,10 +221,11 @@ export const PrototypeProvider = ({ children }) => {
       setSessionLog(prev => {
         if (isDomainChanged && currentPrototype) {
           // Archive the old session as a frozen snapshot before adding the new one
-          const oldExists = prev.some(s => s.id === sessionId)
-          if (!oldExists && sessionId) {
+          const prevSessionId = sessionIdRef.current;
+          const oldExists = prev.some(s => s.id === prevSessionId)
+          if (!oldExists && prevSessionId) {
             const archivedOldSession = {
-              id: sessionId,
+              id: prevSessionId,
               title: promptHistory.length > 0
                 ? (promptHistory[0].text.length > 60 ? promptHistory[0].text.substring(0, 60) + '...' : promptHistory[0].text)
                 : 'Untitled Session',
@@ -369,6 +372,7 @@ export const PrototypeProvider = ({ children }) => {
         }
       } catch (e) {
         console.error("Failed to fetch session:", e);
+        setError(e.response?.data?.error?.message || e.message || "Failed to load session");
       } finally {
         setIsLoading(false);
       }

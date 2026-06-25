@@ -36,7 +36,7 @@ const DOMAINS = {
 
 // Verbs that indicate the user wants to CHANGE the existing prototype.
 // If these are present, a domain shift is very unlikely.
-const MOD_VERBS = /\b(add|change|update|modify|improve|fix|remove|tweak|adjust|make|set|turn)\b/i;
+const MOD_VERBS = /\b(add|change|update|modify|improve|fix|remove|tweak|adjust|set|turn)\b|\bmake\b(?!\s+(?:a|an|new)\b)/i;
 
 const OVERLAP_THRESHOLD    = 0.15;  // below this + no mod-verbs = domain shift
 const CONFIDENCE_THRESHOLD = 0.3;   // minimum score to assign a known domain

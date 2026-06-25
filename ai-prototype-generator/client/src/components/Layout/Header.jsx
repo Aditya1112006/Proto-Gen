@@ -38,9 +38,7 @@ function Header() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 bg-neon-green/10 border border-neon-green/40 flex items-center justify-center shadow-[0_0_15px_rgba(57,255,20,0.1)] group-hover:shadow-[0_0_25px_rgba(57,255,20,0.3)] transition-shadow">
-               <span className="text-neon-green font-bold text-lg">P</span>
-            </div>
+            <img src="/logo.png" alt="ProtoGen Logo" className="w-14 h-14 object-contain" />
             <span className="text-xl font-bold text-white tracking-tight">
               Proto<span className="text-neon-green">Gen</span>
             </span>

@@ -44,30 +44,71 @@ class RAGService {
     const topK = opts.topK || TOP_K_DEFAULT;
 
     try {
-      // Build the query vector, load chunks, pre-filter, score, and rank.
+      // Build the query vector.
       const queryVec = await toVector(query);
-      const allChunks = await this._loadChunks();
+      let ranked = [];
+      let indexName = process.env.ATLAS_VECTOR_INDEX;
 
-      if (!allChunks.length) {
-        console.warn('[RAGService] Knowledge base is empty – run: npm run seed');
-        return '';
+      if (indexName) {
+        try {
+          console.log(`[RAGService] Performing Atlas Vector Search (Index: ${indexName})`);
+          // Query Atlas using aggregation pipeline
+          const rawResults = await KnowledgeChunk.aggregate([
+            {
+              $vectorSearch: {
+                index: indexName,
+                path: 'embedding',
+                queryVector: queryVec,
+                numCandidates: topK * 5,
+                limit: topK * 3
+              }
+            },
+            {
+              $project: {
+                title: 1,
+                text: 1,
+                category: 1,
+                tags: 1,
+                embedding: 1,
+                score: { $meta: 'vectorSearchScore' }
+              }
+            }
+          ]);
+
+          // Filter by category if signal matches category
+          const category = opts.forceCategory || this._getCategory(query);
+          const pool = category ? this._filterChunks(rawResults, category) : rawResults;
+          const searchPool = pool.length > 0 ? pool : rawResults;
+
+          ranked = searchPool
+            .filter(chunk => chunk.score >= MIN_SCORE)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, topK);
+
+        } catch (atlasErr) {
+          console.warn('[RAGService] Atlas Vector Search failed (will fall back to local):', atlasErr.message);
+          indexName = null; // trigger fallback
+        }
       }
 
-      const category = opts.forceCategory || this._getCategory(query);
-      const pool = category ? this._filterChunks(allChunks, category) : allChunks;
+      if (!indexName) {
+        // Fallback: load all chunks in memory and run cosine similarity locally
+        const allChunks = await this._loadChunks();
+        if (!allChunks.length) {
+          console.warn('[RAGService] Knowledge base is empty – run: npm run seed');
+          return '';
+        }
 
-      if (category) {
-        console.log(`[RAGService] Pre-filtered to "${category}" → ${pool.length} candidates`);
+        const category = opts.forceCategory || this._getCategory(query);
+        const pool = category ? this._filterChunks(allChunks, category) : allChunks;
+        const searchPool = pool.length > 0 ? pool : allChunks;
+
+        ranked = searchPool
+          .map(chunk => ({ ...chunk, score: getSimilarity(queryVec, chunk.embedding) }))
+          .filter(chunk => chunk.score >= MIN_SCORE)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, topK);
       }
-
-      // If pre-filter removed everything, fall back to the full corpus.
-      const searchPool = pool.length > 0 ? pool : allChunks;
-
-      const ranked = searchPool
-        .map(chunk => ({ ...chunk, score: getSimilarity(queryVec, chunk.embedding) }))
-        .filter(chunk => chunk.score >= MIN_SCORE)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, topK);
 
       if (!ranked.length) {
         console.log('[RAGService] No chunks passed relevance threshold for:', query.substring(0, 60));

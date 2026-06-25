@@ -383,7 +383,7 @@ function CodeOutput({ files, content, sessionId }) {
           </div>
 
           {/* Code Block */}
-          <pre className="p-6 pt-16 overflow-x-auto text-sm text-gray-300 font-mono h-full">
+          <pre className="p-6 pt-16 text-sm text-gray-300 font-mono h-full overflow-auto whitespace-pre-wrap break-words leading-relaxed">
             <code>{currentFile?.content}</code>
           </pre>
         </div>

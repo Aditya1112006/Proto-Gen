@@ -4,15 +4,18 @@
  * fills in intelligent defaults for missing data, and guarantees layout is structured.
  */
 
+import { formatHTML, formatJS } from '../utils/codeFormatter.js';
+
 /**
  * Validate and fix a prototype response from the LLM.
  * Guarantees the output has all required fields with correct types.
+ * Now async to support Prettier-based code formatting.
  *
  * @param {object} data - Raw parsed LLM response
  * @param {object} context - Pipeline context (domain, features)
- * @returns {{ validated: object, fixes: string[] }} - Validated prototype + list of fixes applied
+ * @returns {Promise<{ validated: object, fixes: string[] }>} - Validated prototype + list of fixes applied
  */
-export function validatePrototype(data, context = {}) {
+export async function validatePrototype(data, context = {}) {
   const fixes = [];
 
   if (!data || typeof data !== 'object') {
@@ -117,10 +120,39 @@ export function validatePrototype(data, context = {}) {
   metadata.title = content.title;
   metadata.domain = content.domain;
 
+  // ── Format generated code files with Prettier ─────────────────────────────
+  if (Array.isArray(files) && files.length > 0) {
+    let formattedCount = 0;
+    const formattedFiles = await Promise.all(
+      files.map(async (file) => {
+        const fileName = (file.name || file.filename || '').toLowerCase();
+        let formattedContent = file.content || '';
+
+        try {
+          if (fileName.endsWith('.html')) {
+            formattedContent = await formatHTML(formattedContent);
+            formattedCount++;
+          } else if (fileName.endsWith('.js')) {
+            formattedContent = await formatJS(formattedContent);
+            formattedCount++;
+          }
+        } catch (err) {
+          console.warn(`[Validator] Could not format ${fileName}:`, err.message);
+        }
+
+        return { ...file, content: formattedContent };
+      })
+    );
+    files = formattedFiles;
+    if (formattedCount > 0) {
+      fixes.push(`Formatted ${formattedCount} code file(s) with Prettier`);
+    }
+  }
+
   const validated = {
     metadata,
     content,
-    files: files,
+    files,
     message: data.message || `Generated ${content.title} prototype.`
   };
 

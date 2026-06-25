@@ -35,6 +35,7 @@ export class SessionManager {
   async getSession(id) {
     let s = await Session.findOne({ sessionId: id });
     if (!s) {
+      console.warn(`[SessionManager] Session "${id}" not found in DB – creating a new blank session. This may indicate the frontend sent a stale sessionId.`);
       s = new Session({ sessionId: id, changeLog: [] });
       await s.save();
     }
@@ -65,7 +66,7 @@ export class SessionManager {
       canonicalRequirements: s.canonicalRequirements,
       total_prompt_count:  s.totalPromptCount,
       merged_prompt_count: s.mergedPromptCount,
-      change_log:          s.changeLog,
+      change_log:          s.changeLog ? s.changeLog.slice(-6) : [],
       previousLayout:      s.lastOutput?.content?.layout || null,
       previousFiles:       s.lastOutput?.files || s.lastOutput?.metadata?.files || null,
     };

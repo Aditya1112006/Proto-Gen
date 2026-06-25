@@ -23,7 +23,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 // Try each model left-to-right; skip to the next on 429/503/404.
 function buildModelQueue() {
   const primary = process.env.GEMINI_MODEL?.trim().toLowerCase() || 'gemini-2.5-flash';
-  const defaults = [primary, 'gemini-2.5-flash', 'gemini-3.1-flash-lite-preview', 'gemini-3-flash'];
+  const defaults = [primary, 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
   return [...new Set(defaults)]; // deduplicate
 }
 
@@ -92,7 +92,28 @@ export class LLMService {
           msg.includes('not found') || msg.includes('404');
 
         if (shouldRetry && i < tryModels.length - 1) {
-          console.warn(`[LLMService] ⚠ "${model}" failed (${status || msg}). Trying next...`);
+          // Parse the suggested retryDelay from the Gemini error response
+          let waitMs = 2000; // default 2s between model switches
+          try {
+            const errBody = JSON.parse(err.message || '{}');
+            const retryInfo = errBody?.error?.details?.find(d => d['@type']?.includes('RetryInfo'));
+            if (retryInfo?.retryDelay) {
+              // retryDelay looks like "24s" or "6.5s"
+              const seconds = parseFloat(retryInfo.retryDelay);
+              if (!isNaN(seconds)) waitMs = Math.min(seconds * 1000, 15000); // cap at 15s
+            }
+          } catch (_) { /* use default */ }
+
+          // If daily quota is exhausted (limit: 0 on daily metric), skip immediately
+          const isDailyExhausted = msg.includes('per_day') || msg.includes('perday') ||
+            (msg.includes('limit') && msg.includes('"limit":0') && msg.includes('per_project'));
+
+          if (isDailyExhausted) {
+            console.warn(`[LLMService] ⚠ "${model}" daily quota exhausted. Skipping immediately...`);
+          } else {
+            console.warn(`[LLMService] ⚠ "${model}" failed (${status}). Waiting ${Math.round(waitMs/1000)}s before next model...`);
+            await new Promise(r => setTimeout(r, waitMs));
+          }
           continue;
         }
         throw err;
@@ -135,7 +156,7 @@ export class LLMService {
         }
       }
 
-      // Stage 3 – LLM Call
+      // Stage 3 – LLM Call with Auto-Healing Retry Loop
       const isCodeMode   = mode === 'workflow+code';
       const sysPrompt    = isCodeMode ? CODE_SYSTEM_PROMPT : SYSTEM_PROMPT;
       const maxTokens    = isCodeMode ? CODE_TOKENS : WORKFLOW_TOKENS;
@@ -144,21 +165,87 @@ export class LLMService {
       const baseContent  = formatUserPrompt(prompt, context, mode, features);
       const finalContent = ragContext ? `${ragContext}\n\n${baseContent}` : baseContent;
 
-      const rawRes = await this.callAI(finalContent, {
-        temperature,
-        maxOutputTokens: maxTokens,
-        responseMimeType: 'application/json',
-        systemInstruction: sysPrompt,
-      });
+      let rawRes;
+      let parsed = {};
+      let validated = null;
+      let fixes = [];
+      let retriesLeft = 2;
+      let healingPrompt = '';
 
-      const parsed = this.parseJSON(rawRes.text);
+      while (retriesLeft >= 0) {
+        try {
+          const contentToSend = healingPrompt 
+            ? `${finalContent}\n\n[AUTO_HEAL_ATTEMPT]\n${healingPrompt}`
+            : finalContent;
 
-      // Stage 4 – Validation
-      const { validated, fixes } = validatePrototype(parsed, {
+          // If this is a retry, use a slightly colder temperature for stricter structure
+          const currentTemp = healingPrompt ? Math.max(0.1, temperature - 0.15) : temperature;
+
+          console.log(`[LLMService] Invoking model (Retries left: ${retriesLeft}, Temp: ${currentTemp.toFixed(2)})`);
+          rawRes = await this.callAI(contentToSend, {
+            temperature: currentTemp,
+            maxOutputTokens: maxTokens,
+            responseMimeType: 'application/json',
+            systemInstruction: sysPrompt,
+          });
+
+          parsed = this.parseJSON(rawRes.text);
+
+          // Structural sanity verification
+          const isEmpty = !parsed || Object.keys(parsed).length === 0;
+          const isMissingCrucial = !isEmpty && (!parsed.content || !parsed.content.layout);
+          const isMissingFiles = isCodeMode && !isEmpty && (!parsed.files || parsed.files.length === 0);
+
+          if (isEmpty) {
+            throw new Error('LLM returned empty or unparseable JSON.');
+          }
+          if (isMissingCrucial) {
+            throw new Error('LLM output lacks "content" or "content.layout" structure.');
+          }
+          if (isMissingFiles) {
+            throw new Error('LLM in "workflow+code" mode failed to output files in the root "files" array.');
+          }
+
+          // If we passed all checks, break out of retry loop
+          console.log('[LLMService] ✓ AI output passed structural validation.');
+          break;
+
+        } catch (attemptErr) {
+          console.warn(`[LLMService] ⚠️ Generation attempt failed: ${attemptErr.message}`);
+          
+          if (retriesLeft === 0) {
+            console.error('[LLMService] ✗ All auto-healing retries exhausted.');
+            // Let the validator handle basic defaults as fallback rather than crashing the pipeline
+            if (Object.keys(parsed).length > 0) {
+              break;
+            } else {
+              throw attemptErr;
+            }
+          }
+
+          // Construct a targeted auto-healing prompt based on the failure type
+          if (attemptErr.message.includes('unparseable')) {
+            healingPrompt = `CRITICAL: Your last response was invalid or truncated JSON. Generate ONLY valid, parseable JSON conforming EXACTLY to the requested schema. Ensure all brackets are closed and do NOT truncate.`;
+          } else if (attemptErr.message.includes('layout')) {
+            healingPrompt = `CRITICAL: Your last response was missing the "content" or "content.layout" fields. You must generate a structured PascalCase component tree in the "content.layout" key.`;
+          } else if (attemptErr.message.includes('files')) {
+            healingPrompt = `CRITICAL: You are in workflow+code mode. You must populate the "files" array with exactly 2 files: "index.html" (complete layout styled with Tailwind classes) and "app.js" (complete javascript interaction logic). Do NOT return placeholders or empty arrays.`;
+          } else {
+            healingPrompt = `CRITICAL: The last generation attempt was invalid. Error: ${attemptErr.message}. Please generate the complete structured JSON response complying with the system prompt rules.`;
+          }
+
+          retriesLeft--;
+        }
+      }
+
+      // Stage 4 – Validation (async: formats code files with Prettier)
+      const validationResult = await validatePrototype(parsed, {
         domain:   features.domain,
         features: features.features,
         title:    context?.title || null,
       });
+      validated = validationResult.validated;
+      fixes = validationResult.fixes;
 
       // Enrich pipeline metadata for the frontend status display.
       if (validated.content?.pipeline) {

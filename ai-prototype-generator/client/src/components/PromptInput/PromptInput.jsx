@@ -66,21 +66,30 @@ function PromptInput({ onSubmit, isLoading, promptHistory = [], counters = {}, d
       {/* Input Area */}
       <form onSubmit={handleSubmit} className="p-1 relative bg-dark-900/60 overflow-hidden">
         <div className="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none mix-blend-screen"></div>
-        <div className="relative flex flex-col sm:block z-10">
+        <div className="relative flex flex-col z-10">
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="> Enter system specifications... (e.g. 'Initialize admin dashboard with dark mode')"
-            className="w-full h-32 sm:h-40 px-4 sm:px-5 py-4 pb-2 sm:pb-4 bg-transparent border-none text-gray-200 placeholder:text-gray-600 resize-none focus:ring-0 text-sm leading-relaxed antialiased"
+            className="w-full h-32 sm:h-40 px-4 sm:px-5 py-4 pb-4 bg-transparent border-none text-gray-200 placeholder:text-gray-600 resize-none focus:ring-0 text-sm leading-relaxed antialiased"
             disabled={isLoading}
           />
 
-          {/* Submit Button */}
-          <div className="p-2 sm:p-0 sm:absolute sm:bottom-4 sm:right-4 w-full sm:w-auto flex justify-end">
+          <div className="px-4 py-3 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-dark-800/50 mx-1 mt-1">
+            <div className="flex flex-col gap-1 w-full sm:w-auto text-left">
+              <p className="text-[10px] text-gray-600 uppercase tracking-wider">
+                Context merging active. Iterative prompts supported.
+              </p>
+              <span className="text-[10px] text-neon-green/50 animate-pulse font-mono block">
+                _READY
+              </span>
+            </div>
+
+            {/* Submit Button */}
             <button
               type="submit"
               disabled={!prompt.trim() || isLoading}
-              className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-6 py-2.5 sm:py-2 bg-neon-green text-dark-950 text-xs font-bold uppercase tracking-widest hover:bg-neon-green/90 hover:shadow-[0_0_25px_rgba(57,255,20,0.6)] disabled:opacity-30 disabled:hover:shadow-none disabled:cursor-not-allowed transition-all duration-300 transform hover:-translate-y-0.5"
+              className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-6 py-2.5 bg-neon-green text-dark-950 text-xs font-bold uppercase tracking-widest hover:bg-neon-green/90 hover:shadow-[0_0_25px_rgba(57,255,20,0.6)] disabled:opacity-30 disabled:hover:shadow-none disabled:cursor-not-allowed transition-all duration-300 transform hover:-translate-y-0.5"
             >
               {isLoading ? (
                 <>
@@ -95,15 +104,6 @@ function PromptInput({ onSubmit, isLoading, promptHistory = [], counters = {}, d
               )}
             </button>
           </div>
-        </div>
-        
-        <div className="px-4 pb-3 flex justify-between items-center border-t border-dark-800/50 pt-2 mx-1 mt-1">
-          <p className="text-[10px] text-gray-600 uppercase tracking-wider">
-            Context merging active. Iterative prompts supported.
-          </p>
-          <span className="text-[10px] text-neon-green/50 animate-pulse font-mono block">
-            _READY
-          </span>
         </div>
       </form>
     </div>

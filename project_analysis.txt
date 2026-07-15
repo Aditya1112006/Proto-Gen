@@ -1,0 +1,74 @@
+# Proto-Gen Project Analysis
+
+## 🌟 Project Overview
+Proto-Gen is an AI-powered prototype generator designed to help non-technical founders, junior designers, and developers quickly translate natural language app ideas into structured workflows, requirements, and interactive, production-ready frontend code (HTML/CSS/JS). 
+
+The application solves the "blank-canvas" problem by letting users describe their product ideas in plain language, automatically augmenting their requests with standard UX/UI patterns, and allowing them to iteratively tweak their prototypes using incremental updates.
+
+The project is structured as a monorepo with separate client/ (React frontend) and server/ (Express backend) directories under ai-prototype-generator.
+
+---
+
+## 🏗️ Complete Technology Stack
+
+*   **Frontend**: 
+    *   React 18 and Vite for a modern, hot-reloading user interface.
+    *   Tailwind CSS for layout, styling, and animations.
+    *   Lucide React for icons.
+    *   Axios for API requests, configured with request interceptors to automatically forward authentication tokens (see client/src/services/api.js).
+*   **Backend**:
+    *   Node.js & Express.js providing a structured API gateway.
+    *   MongoDB & Mongoose for persistent session, user, and RAG data.
+*   **AI Engine**:
+    *   Google Gemini API (using the new @google/genai library) targeting gemini-3.1-flash-lite-preview with automatic fallback to gemini-3-flash and gemini-2.5-flash to handle quota limits or model failures gracefully.
+
+---
+
+## ⚙️ Architecture & Core Components
+
+### 1. Backend Core Services (The Generation Pipeline)
+All services reside under server/src/services:
+
+*   llmService.js (LLMService): 
+    *   Orchestrates the entire generation pipeline: Feature Extraction -> RAG -> LLM generation -> Validation.
+    *   Maintains a model fallback queue (this.models) that catches status codes (429, 503, etc.) and retries using fallback models.
+    *   Features a custom, iterative JSON repair function (parseJSON()) designed to repair truncated JSON responses when the model hits output token limits.
+*   promptEnhancer.js (PromptExpander): 
+    *   Acts as a virtual Product Manager. Takes a simple query like "make a recipe app" and expands it to cover responsive behaviors, palettes, loading states, and typical features under 350 words before sending it to the main generator.
+*   domainDetector.js (DomainClassifier):
+    *   Heuristically categorizes the app domain (e.g., e-commerce, real-estate, fitness).
+    *   Performs a three-condition test (keyword overlap, domain divergence, and presence of modification verbs like add, modify, fix) to decide if a new prompt is a refinement of the active project or a domain shift. If a shift is detected, the old session is archived, and a fresh workspace is initialized.
+*   featureExtractor.js (FeatureExtractor):
+    *   Extracts functional requirements and tags (e.g., user profiles, payment gateway, sorting) via regex and keyword matching.
+*   embeddingService.js (EmbeddingService):
+    *   Implements a zero-cost local embedding model! It projects queries onto a curated 100-dimensional UI/UX keyword vocabulary (VOCAB) and normalizes the word frequency to calculate cosine similarity.
+*   ragService.js (RAGService):
+    *   Uses the 100-dimensional vectors to search the MongoDB knowledge base for matching patterns (like sidebar layouts, dark mode design tips, auth flow patterns) and injects them as structured system context for the LLM.
+*   prototypeValidator.js (PrototypeValidator):
+    *   Enforces schema safety on the generated JSON output. Fills in default steps, roles, and structures if missing, strips out banned words, and formats the output HTML/JS files using Prettier before serving.
+*   promptMerger.js (SessionManager):
+    *   Aggregates the user's iterative requirements and merges incoming changes. When an update has a >= 50% keyword overlap with an existing requirement, the newer requirement replaces the older one.
+
+### 2. Database Models
+Defined under server/src/models:
+*   Session.js: Stores prompt histories, aggregated requirements, change logs, and the last generated codebase output so sessions can be loaded persistently.
+*   User.js: Standard password-hashed user collection for account authentication.
+*   KnowledgeChunk.js: Holds the seeded design guidelines and vectors.
+
+### 3. Client Frontend State & Interaction
+*   PrototypeContext.jsx:
+    *   Manages the global loading, generation, and error states.
+    *   Coordinates the step-by-step pipeline tracker: "enhancing" -> "detecting" -> "extracting" -> "retrieving" -> "generating" -> "validating" -> "complete".
+    *   Handles loading existing user histories and archiving old projects on domain changes.
+*   PrototypeGenerator.jsx:
+    *   The primary workspace UI. Features a hacker/cyberpunk dark theme (scanlines, terminal prompts, glassmorphism cards).
+    *   Allows toggling between workflow visualizations (layout trees, roles, criteria) and a code panel where you can interact with a live sandbox iframe showing the generated interface.
+
+---
+
+## 🎨 Visual Theme & UX Aesthetics
+The client application implements a "Dark Developer" custom UI design featuring:
+1.  Vibrant Neon Accents: Violet, purple, green, and red border and shadow pulses.
+2.  Scanline Effects & Grid Backgrounds: Mimics a retro-futuristic terminal interface.
+3.  Active Status Indicator: The generator visualizes the pipeline's stages (e.g. Retrieving Context, Validating JSON Schema) in real-time.
+4.  Glassmorphism Panels: Semi-transparent card widgets that overlay grid patterns nicely.

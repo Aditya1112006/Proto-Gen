@@ -157,16 +157,16 @@ function LandingPage() {
             <h2 className="text-2xl font-bold text-white mb-8 flex items-center gap-3">
               <span className="text-neon-green">{'>'}</span> Describe Your UI
             </h2>
-            <div className="glass-card p-2 sm:p-2 !bg-dark-900/90 flex flex-col sm:block group relative">
+            <div className="glass-card p-2 !bg-dark-900/90 flex flex-col group">
               <textarea 
-                className="w-full h-32 sm:h-40 bg-dark-950/50 text-white p-4 sm:p-6 pb-2 sm:pb-6 rounded-none resize-none border-none placeholder:text-dark-600 focus:ring-0 text-base sm:text-lg"
+                className="w-full h-32 sm:h-40 bg-dark-950/50 text-white p-4 sm:p-6 pb-4 rounded-none resize-none border-none placeholder:text-dark-600 focus:ring-0 text-base sm:text-lg"
                 placeholder="Ex: Create a dashboard for a crypto portfolio app with a dark theme..."
                 value={promptInput}
                 onChange={(e) => setPromptInput(e.target.value)}
                 onKeyDown={handleKeyDown}
               />
-              <div className="w-full sm:absolute sm:bottom-6 sm:right-6 flex flex-col sm:flex-row items-center justify-end gap-2 sm:gap-4 p-2 sm:p-0">
-                <span className="text-xs text-dark-500 hidden sm:block">Press <kbd className="bg-dark-800 px-2 py-1 rounded border border-dark-700">Enter</kbd> to execute</span>
+              <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-dark-800/50 mt-1">
+                <span className="text-xs text-dark-500 hidden sm:block text-left">Press <kbd className="bg-dark-800 px-2 py-1 rounded border border-dark-700">Enter</kbd> to execute</span>
                 <button 
                   onClick={handlePromptSubmit} 
                   className="w-full sm:w-auto px-6 py-3 sm:py-2.5 min-h-[44px] bg-neon-green text-dark-950 font-bold hover:bg-neon-green/90 transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2"

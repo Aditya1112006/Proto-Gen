@@ -31,7 +31,7 @@ function buildModelQueue() {
 const RETRY_CODES = new Set([429, 503, 500, 404]);
 
 // Token budgets per mode.
-const WORKFLOW_TOKENS  = 4096;
+const WORKFLOW_TOKENS  = 8192;  // increased from 4096 – complex JSON schema needs more room
 const CODE_TOKENS      = 20000;
 const WORKFLOW_TEMP    = 0.25; // low variance for structured specs
 const CODE_TEMP        = 0.4;  // slightly more creative for UI decisions

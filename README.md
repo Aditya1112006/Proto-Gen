@@ -4,7 +4,7 @@ An AI-powered prototype generator for designers and non-technical founders. Desc
 
 ## ✨ Features
 
-- **Google Gemini 3.1 Flash Lite**: Blazing fast AI generation powered by Google's latest preview model, with robust fallback chains to Gemini 3 Flash and 2.5 Flash.
+- **Google Gemini 2.5 Flash**: Blazing fast AI generation powered by Google's Gemini 2.5 Flash model, offering an optimal balance of speed, quality, and cost.
 - **AI Prompt Enhancer**: Automatically expands brief, rough user ideas into detailed UI/UX specifications using Gemini, acting like an elite Product Manager to ensure comprehensive prototypes.
 - **RAG Knowledge Retrieval**: Grounds AI responses in curated UI/UX knowledge via a MongoDB vector similarity search for superior, standard-compliant designs.
 - **Incremental Updates**: Follow-up prompts act as delta changes, intelligently modifying only the requested elements without regenerating the entire prototype from scratch.
@@ -44,7 +44,7 @@ ai-prototype-generator/
 
 - **Frontend**: React 18, Vite, Tailwind CSS, Lucide React (Icons)
 - **Backend**: Node.js, Express.js
-- **AI Model**: `@google/genai` (Gemini 3.1 Flash Lite Preview & Gemini 3 Flash)
+- **AI Model**: `@google/genai` (Gemini 2.5 Flash — `gemini-2.5-flash`)
 - **Storage**: MongoDB (Mongoose) for RAG knowledge base, user data, and session tracking
 
 ## 🚀 Getting Started
@@ -73,7 +73,7 @@ cp client/.env.example client/.env
 Open `server/.env` and add your **Gemini API Key** and **MongoDB URI**:
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-3.1-flash-lite-preview
+GEMINI_MODEL=gemini-2.5-flash
 MONGODB_URI=mongodb://localhost:27017/ai-prototype-generator
 ```
 

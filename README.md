@@ -18,12 +18,12 @@ An AI-powered prototype generator for designers and non-technical founders. Desc
 ## 🏗️ Architecture
 
 ```text
-ai-prototype-generator/
+Proto-Gen/
 ├── client/                 # React 18 + Vite frontend (Tailwind CSS)
 │   ├── src/
-│   │   ├── components/     # UI Components (Prompts, Modals, Output, Layout)
+│   │   ├── components/     # UI Components (PromptInput, Output, Modals, Layout, History, etc.)
 │   │   ├── context/        # React Context for session & auth management
-│   │   ├── hooks/          # Custom React hooks (useAuth, usePrototype)
+│   │   ├── data/           # Static data and constants
 │   │   ├── pages/          # Application views (Landing, Generator, Auth)
 │   │   ├── services/       # API clients and data fetching logic
 │   │   ├── state/          # Global state management (Zustand/Preview state)
@@ -31,21 +31,27 @@ ai-prototype-generator/
 ├── server/                 # Express.js + Node.js backend
 │   ├── src/
 │   │   ├── config/         # Database and environment configurations
+│   │   ├── controllers/    # Route handler logic
+│   │   ├── errors/         # Custom error classes
 │   │   ├── middleware/     # Auth and rate-limiting middleware
 │   │   ├── models/         # Mongoose schemas (Session, User, KnowledgeChunk)
 │   │   ├── routes/         # Express API endpoints
 │   │   ├── scripts/        # Seeding and maintenance scripts
-│   │   ├── services/       # Gemini LLM, RAG, Prompt Enhancer, Domain Detector
+│   │   ├── services/       # Gemini LLM, RAG, Prompt Enhancer, Domain Detector, Embeddings
 │   │   └── utils/          # LLM prompt templates and heuristics
-└── package.json            # Root workspace config
+├── .env.example            # Server environment variable template
+├── .gitignore
+└── package.json            # Root workspace config (runs client + server concurrently)
 ```
 
 ## 💻 Tech Stack
 
-- **Frontend**: React 18, Vite, Tailwind CSS, Lucide React (Icons)
-- **Backend**: Node.js, Express.js
+- **Frontend**: React 18, Vite, Tailwind CSS, React Router v6, Axios, Lucide React, PrismJS, react-hot-toast
+- **Backend**: Node.js, Express.js, Nodemon (dev)
 - **AI Model**: `@google/genai` (Gemini 2.5 Flash — `gemini-2.5-flash`)
+- **Auth**: JSON Web Tokens (`jsonwebtoken`), `bcryptjs`
 - **Storage**: MongoDB (Mongoose) for RAG knowledge base, user data, and session tracking
+- **Other**: `archiver` (zip export), `express-rate-limit`, `compromise` (NLP), `natural`
 
 ## 🚀 Getting Started
 
@@ -54,27 +60,31 @@ ai-prototype-generator/
 - MongoDB instance (local or Atlas)
 - Go to [Google AI Studio](https://aistudio.google.com/) and get a free Gemini API key.
 
-### 1. Install Dependencies
+### 1. Clone & Install Dependencies
 ```bash
 git clone <your-repo>
-cd ai-prototype-generator
+cd Proto-Gen
 
 # Install root, client, and server dependencies
 npm run install:all
 ```
 
 ### 2. Configure Environment Variables
-Copy the specific configuration files:
+Copy the environment template:
 ```bash
 cp .env.example server/.env
-cp client/.env.example client/.env
 ```
 
-Open `server/.env` and add your **Gemini API Key** and **MongoDB URI**:
+Open `server/.env` and fill in your **Gemini API Key** and **MongoDB URI**:
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-2.5-flash
-MONGODB_URI=mongodb://localhost:27017/ai-prototype-generator
+MONGO_URI=your_mongodb_connection_string
+PORT=5001
+NODE_ENV=development
+CORS_ORIGIN=http://localhost:5173
+JWT_SECRET=your_jwt_secret_here
+JWT_EXPIRES_IN=7d
 ```
 
 ### 3. Seed Knowledge Base
@@ -87,7 +97,7 @@ cd ..
 
 ### 4. Start the Application
 ```bash
-# Run both frontend and backend concurrently
+# Run both frontend and backend concurrently from the root
 npm run dev
 ```
 - Client runs at: `http://localhost:5173`
@@ -107,7 +117,7 @@ npm run dev
 
 **Backend (Render / Railway):**
 1. Set the root directory to `server`.
-2. Add Env Vars: `GEMINI_API_KEY`, `MONGODB_URI`, `NODE_ENV=production`, and `CORS_ORIGIN=https://your-frontend.com`
+2. Add Env Vars: `GEMINI_API_KEY`, `GEMINI_MODEL`, `MONGO_URI`, `NODE_ENV=production`, `JWT_SECRET`, and `CORS_ORIGIN=https://your-frontend.com`
 3. Build command: `npm install`, Start command: `npm start`
 
 **Frontend (Vercel / Netlify):**

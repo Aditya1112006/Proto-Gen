@@ -39,7 +39,7 @@ Proto-Gen/
 │   │   ├── scripts/        # Seeding and maintenance scripts
 │   │   ├── services/       # Gemini LLM, RAG, Prompt Enhancer, Domain Detector, Embeddings
 │   │   └── utils/          # LLM prompt templates and heuristics
-├── .env.example            # Server environment variable template
+├── .env.example            # Root-level pointer (see server/.env.example for full config)
 ├── .gitignore
 └── package.json            # Root workspace config (runs client + server concurrently)
 ```
@@ -70,21 +70,32 @@ npm run install:all
 ```
 
 ### 2. Configure Environment Variables
-Copy the environment template:
+
+> [!IMPORTANT]
+> **Never commit your `.env` file.** It is git-ignored by default. Only commit `.env.example` files with placeholder values.
+
+Copy the environment template and fill in your values:
 ```bash
-cp .env.example server/.env
+cd server
+cp .env.example .env
 ```
 
-Open `server/.env` and fill in your **Gemini API Key** and **MongoDB URI**:
+Open `server/.env` and fill in your real keys:
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-2.5-flash
-MONGO_URI=your_mongodb_connection_string
+MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/ProtoGen
+ATLAS_VECTOR_INDEX=vector_index
 PORT=5001
 NODE_ENV=development
-CORS_ORIGIN=http://localhost:5173
-JWT_SECRET=your_jwt_secret_here
+CORS_ORIGIN=http://localhost:3000
+JWT_SECRET=your_long_random_secret_here
 JWT_EXPIRES_IN=7d
+```
+
+To generate a secure `JWT_SECRET`:
+```bash
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
 ### 3. Seed Knowledge Base
@@ -124,6 +135,13 @@ npm run dev
 1. Set the root directory to `client`.
 2. Add Env Var: `VITE_API_URL=https://your-backend.com`
 3. Build command: `npm run build`, Publish directory: `dist`
+
+## 🔒 Security
+
+- **Never commit `.env` files.** The `.gitignore` is configured to block all `.env` files in all subdirectories.
+- **Always use `.env.example`** with placeholder values for documentation.
+- **Rotate your keys immediately** if you accidentally commit them. Use [git-filter-repo](https://github.com/newren/git-filter-repo) to purge secrets from git history.
+- For production deployments, use your platform's native secrets manager (Render Environment Variables, Vercel Environment Variables, etc.) instead of `.env` files.
 
 ## 📜 License
 

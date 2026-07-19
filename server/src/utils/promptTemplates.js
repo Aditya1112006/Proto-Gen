@@ -289,9 +289,212 @@ Same rules as the workflow prompt:
 - NEVER use a bare string as a value
 - CRITICAL JSON SYNTAX: The "layout" field is an OBJECT. You MUST close it with a curly brace '}', NEVER a square bracket ']'.
 
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-SECTION 5 â€” CODE QUALITY REQUIREMENTS (CRITICAL)
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════════════════════════════════════════════════
+SECTION 5 — CODE QUALITY REQUIREMENTS (CRITICAL)
+═══════════════════════════════════════════════════════════════
+Your code will be rendered inside a live browser iframe. It must look stunning and feel professional.
+
+### 5A. LAYOUT MODE SELECTION (MANDATORY)
+Classify the prompt into ONE of these modes and match the HTML structure accordingly:
+- MODE 1 LANDING/PORTFOLIO: full-width sections, light bg, hero + cards grid + contact
+- MODE 2 DASHBOARD/SAAS: dark bg, fixed sidebar, header bar, stat cards + tables
+- MODE 3 UTILITY APP: gradient bg, centered single card, large inputs + action buttons
+
+### 5B. HTML FILE REQUIREMENTS
+- Include Tailwind CSS via CDN in <head>:
+  <script src="https://cdn.tailwindcss.com"></script>
+- Include Google Fonts (Inter + a display font like Syne or Plus Jakarta Sans for headings) via a <link> tag in <head>
+- Include Lucide Icons via CDN in <head>:
+  <script src="https://unpkg.com/lucide@latest"></script>
+- Use semantic HTML5: <header>, <nav>, <main>, <section>, <footer>, <article>
+- Every interactive element MUST have a unique id attribute
+- Use Tailwind classes for layout structure (flex, grid, spacing, sizing)
+- IMPORTANT: DO NOT write large inline <svg> code. You MUST use <i data-lucide="icon-name"></i> for ALL icons.
+- GENERATE ROBUST LOGIC: Write complete, fully functional JavaScript. Ensure EVERY screen requested is fully implemented. You have a 24,000 token output limit — use it.
+
+### 5B-CSS. MANDATORY RICH INLINE STYLE BLOCK (THIS IS CRITICAL FOR VISUAL QUALITY)
+You MUST write a LARGE, comprehensive <style> block in <head>. This is what separates a premium prototype from a basic one.
+Do NOT limit it to just font-family — write a FULL custom design system in CSS.
+
+The <style> block MUST include ALL of the following:
+
+**1. CSS Custom Properties (Design Tokens):**
+:root {
+  --primary: #6366f1;        /* your accent */
+  --primary-glow: rgba(99,102,241,0.35);
+  --surface: rgba(255,255,255,0.05);
+  --surface-hover: rgba(255,255,255,0.1);
+  --border: rgba(255,255,255,0.1);
+  --text-primary: #f8fafc;
+  --text-muted: #94a3b8;
+  --radius-xl: 20px;
+  --shadow-glow: 0 0 40px var(--primary-glow);
+  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+(Adapt the actual values to match the chosen palette and domain.)
+
+**2. Base Styles:**
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', sans-serif; scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+
+**3. Glassmorphism Card Class:**
+.glass {
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  transition: var(--transition);
+}
+.glass:hover {
+  background: var(--surface-hover);
+  border-color: rgba(255,255,255,0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+**4. Gradient Border Utility:**
+.gradient-border {
+  position: relative;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, var(--surface), transparent);
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--primary), rgba(99,102,241,0.1));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+**5. Glow Button:**
+.btn-glow {
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 60%, #8b5cf6));
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 28px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: 0 4px 20px var(--primary-glow);
+  letter-spacing: 0.02em;
+}
+.btn-glow:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 30px var(--primary-glow);
+  filter: brightness(1.1);
+}
+.btn-glow:active { transform: scale(0.97); }
+
+**6. Stat Card with Top Accent:**
+.stat-card {
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  transition: var(--transition);
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary), #8b5cf6);
+}
+.stat-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-glow); }
+
+**7. Custom Scrollbar:**
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+**8. Input Styling:**
+.input-field {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: var(--text-primary);
+  width: 100%;
+  transition: var(--transition);
+  outline: none;
+}
+.input-field:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+  background: var(--surface-hover);
+}
+
+**9. @keyframes animations (ALL of these MUST be defined and USED):**
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 20px var(--primary-glow); }
+  50%       { box-shadow: 0 0 50px var(--primary-glow), 0 0 80px var(--primary-glow); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.animate-fade-in-up { animation: fadeInUp 0.5s ease both; }
+.animate-fade-in    { animation: fadeIn 0.4s ease both; }
+
+**10. Navigation & Sidebar Active State:**
+.nav-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-radius: 12px;
+  color: var(--text-muted); cursor: pointer;
+  transition: var(--transition);
+  font-weight: 500;
+}
+.nav-item:hover  { background: var(--surface-hover); color: var(--text-primary); }
+.nav-item.active { background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.15)); color: var(--primary); border: 1px solid rgba(99,102,241,0.3); }
+
+**11. Badge / Tag Pill:**
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 4px 12px; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600;
+  background: rgba(99,102,241,0.15);
+  color: var(--primary);
+  border: 1px solid rgba(99,102,241,0.3);
+}
+
+**12. Toast Notification:**
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface); backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 20px;
+  color: var(--text-primary); font-size: 0.9rem;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  z-index: 9999;
+  animation: slideInRight 0.3s ease;
+  display: flex; align-items: center; gap: 10px;
+  min-width: 260px; max-width: 380px;
+}
+.toast.hidden { display: none; }
+
+APPLY these classes throughout the HTML (glass, stat-card, btn-glow, input-field, nav-item, badge, toast) instead of long repetitive Tailwind class strings.
+Adapt ALL color values in the CSS to match the palette you selected in Section 1B. Combine custom CSS classes + Tailwind for layout (flex, grid, p-, m-, w-, h-) for maximum quality.â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 Your code will be rendered inside a live browser iframe. It must look stunning and feel professional.
 
 ### 5A. STEP 1 â€” SELECT YOUR LAYOUT MODE (MANDATORY)
@@ -458,22 +661,22 @@ Design:
  [ ] I selected the correct Layout Mode (Landing/Portfolio, Dashboard, or Utility) for this prompt
  [ ] The HTML structure matches the chosen Layout Mode's pattern exactly
  [ ] index.html includes <script src="https://cdn.tailwindcss.com"></script>
- [ ] ALL styling uses Tailwind utility classes — NO separate CSS file
- [ ] Inline <style> block in <head> contains ONLY font-family, scroll-behavior, and @keyframes
+ [ ] The <style> block contains: :root CSS vars, .glass, .stat-card, .btn-glow, .input-field, .nav-item, .badge, .toast, scrollbar styles, and ALL @keyframes
+ [ ] .glass, .stat-card, .btn-glow, .input-field, .nav-item, .badge classes are ACTUALLY USED in the HTML body
  [ ] For Landing/Portfolio: clean white/light background, NOT a gradient covering the full page
- [ ] For Dashboard: dark bg-gray-950, sidebar, header, stats grid — NOT a centered card
+ [ ] For Dashboard: dark background, sidebar, header, stats grid — NOT a centered card
  [ ] For Utility: gradient background, single centered card — NOT a full page dashboard
- [ ] Buttons have hover:scale-105, hover:shadow-lg, active:scale-95, transition-all
- [ ] Google Font "Inter" is linked via <link> in <head>
+ [ ] Google Fonts (Inter + display font) linked via <link> in <head>
  [ ] Lucide script is included and <i data-lucide="..."></i> is used for ALL icons (NO massive inline SVG code)
- [ ] Mock data uses real names, numbers, and dates (ZERO Lorem ipsum) but is strictly limited to 3 items max
- [ ] JavaScript handles at least 3 user interactions
- [ ] A toast notification is implemented
- [ ] Layout uses responsive Tailwind prefixes (sm:, md:, lg:)
+ [ ] Mock data uses real names, numbers, and dates (ZERO Lorem ipsum)
+ [ ] JavaScript handles at least 5 user interactions
+ [ ] A toast notification is implemented using the .toast class from the style block
+ [ ] Layout uses responsive Tailwind prefixes (sm:, md:, lg:) for structure
  [ ] "files" array contains ONLY 2 files: "index.html" and "app.js"
  [ ] Code runs without errors when opened in a browser
  [ ] DEAD LINK AUDIT: Every href="#x" or showSection('x') has a matching id="x" element in the HTML
  [ ] BLANK PAGE AUDIT: After page load, at least one section is fully visible (no all-hidden state)
+ [ ] VISUAL QUALITY AUDIT: Does this look like something from Stripe, Linear, or Vercel? If not, refine it.
 
  ═══════════════════════════════════════════════════════════════
  SECTION 7 — SESSION CONTEXT & CONTINUATION PRESERVATION (CRITICAL)

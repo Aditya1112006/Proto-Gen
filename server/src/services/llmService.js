@@ -32,13 +32,14 @@ const RETRY_CODES = new Set([429, 503, 500, 404]);
 
 // Token budgets per mode.
 const WORKFLOW_TOKENS  = 16384; // generous budget for rich structured specs
-const CODE_TOKENS      = 24000; // large budget for complete, high-fidelity code
+const CODE_TOKENS      = 32000; // large budget for complete HTML+JS files
 const WORKFLOW_TEMP    = 0.7;   // higher creativity → richer, more detailed specs
 const CODE_TEMP        = 0.7;   // higher creativity → more polished UI code
 
-// Thinking budget for Gemini 2.5 Flash/Pro — enables deep multi-step reasoning.
-// -1 = dynamic (model decides). Use a high fixed value for maximum quality.
-const THINKING_BUDGET  = 8192;
+// Thinking budgets — workflow benefits from deep reasoning; code mode has a
+// prescriptive prompt so thinking is disabled to maximise output token space.
+const WORKFLOW_THINKING = 4096; // moderate thinking for requirement analysis
+const CODE_THINKING     = 0;    // disabled: prompt is prescriptive, save tokens for output
 
 export class LLMService {
   constructor() {
@@ -186,13 +187,22 @@ export class LLMService {
           const currentTemp = healingPrompt ? Math.max(0.1, temperature - 0.15) : temperature;
 
           console.log(`[LLMService] Invoking model (Retries left: ${retriesLeft}, Temp: ${currentTemp.toFixed(2)})`);
-          rawRes = await this.callAI(contentToSend, {
+          // Code mode disables thinking to preserve the full output token budget
+          // for generating complete HTML + JS files. Workflow mode uses moderate
+          // thinking for better architectural reasoning.
+          const thinkingBudget = isCodeMode ? CODE_THINKING : WORKFLOW_THINKING;
+          const genConfig = {
             temperature: currentTemp,
             maxOutputTokens: maxTokens,
             responseMimeType: 'application/json',
             systemInstruction: sysPrompt,
-            thinkingConfig: { thinkingBudget: THINKING_BUDGET },
-          });
+          };
+          // Only attach thinkingConfig when thinking is enabled (budget > 0)
+          if (thinkingBudget > 0) {
+            genConfig.thinkingConfig = { thinkingBudget };
+          }
+
+          rawRes = await this.callAI(contentToSend, genConfig);
 
           parsed = this.parseJSON(rawRes.text);
 

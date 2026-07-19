@@ -4,7 +4,7 @@
  * fills in intelligent defaults for missing data, and guarantees layout is structured.
  */
 
-import { formatHTML, formatJS } from '../utils/codeFormatter.js';
+import { formatHTML, formatJS, formatCSS } from '../utils/codeFormatter.js';
 
 /**
  * Validate and fix a prototype response from the LLM.
@@ -134,6 +134,9 @@ export async function validatePrototype(data, context = {}) {
             formattedCount++;
           } else if (fileName.endsWith('.js')) {
             formattedContent = await formatJS(formattedContent);
+            formattedCount++;
+          } else if (fileName.endsWith('.css')) {
+            formattedContent = await formatCSS(formattedContent);
             formattedCount++;
           }
         } catch (err) {

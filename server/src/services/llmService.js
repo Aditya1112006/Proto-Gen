@@ -36,10 +36,11 @@ const CODE_TOKENS      = 32000; // large budget for complete HTML+JS files
 const WORKFLOW_TEMP    = 0.7;   // higher creativity → richer, more detailed specs
 const CODE_TEMP        = 0.7;   // higher creativity → more polished UI code
 
-// Thinking budgets — workflow benefits from deep reasoning; code mode has a
-// prescriptive prompt so thinking is disabled to maximise output token space.
-const WORKFLOW_THINKING = 4096; // moderate thinking for requirement analysis
-const CODE_THINKING     = 0;    // disabled: prompt is prescriptive, save tokens for output
+// Thinking budgets — workflow gets generous reasoning budget for deep architectural analysis.
+// Code mode gets a small thinking budget (1024) so the model internally plans the design before
+// writing — just enough to choose palette, layout mode, and structure without burning output tokens.
+const WORKFLOW_THINKING = 6144; // deep reasoning for requirements, architecture, personas
+const CODE_THINKING     = 1024; // plan layout/palette/structure before writing — do not disable
 
 export class LLMService {
   constructor() {
@@ -209,7 +210,7 @@ export class LLMService {
           // Structural sanity verification
           const isEmpty = !parsed || Object.keys(parsed).length === 0;
           const isMissingCrucial = !isEmpty && (!parsed.content || !parsed.content.layout);
-          const isMissingFiles = isCodeMode && !isEmpty && (!parsed.files || parsed.files.length === 0);
+          const isMissingFiles = isCodeMode && !isEmpty && (!parsed.files || parsed.files.length < 3);
 
           if (isEmpty) {
             throw new Error('LLM returned empty or unparseable JSON.');
@@ -218,7 +219,7 @@ export class LLMService {
             throw new Error('LLM output lacks "content" or "content.layout" structure.');
           }
           if (isMissingFiles) {
-            throw new Error('LLM in "workflow+code" mode failed to output files in the root "files" array.');
+            throw new Error('LLM in "workflow+code" mode failed to output all 3 required files (index.html, styles.css, app.js).');
           }
 
           // If we passed all checks, break out of retry loop
@@ -244,7 +245,7 @@ export class LLMService {
           } else if (attemptErr.message.includes('layout')) {
             healingPrompt = `CRITICAL: Your last response was missing the "content" or "content.layout" fields. You must generate a structured PascalCase component tree in the "content.layout" key.`;
           } else if (attemptErr.message.includes('files')) {
-            healingPrompt = `CRITICAL: You are in workflow+code mode. You must populate the "files" array with exactly 2 files: "index.html" (complete layout styled with Tailwind classes) and "app.js" (complete javascript interaction logic). Do NOT return placeholders or empty arrays.`;
+            healingPrompt = `CRITICAL: You are in workflow+code mode. You MUST populate the "files" array with EXACTLY 3 files:\n1. "index.html" — HTML structure only, with <link rel="stylesheet" href="styles.css"> in <head> and <script src="app.js"></script> before </body>.\n2. "styles.css" — Complete premium CSS design system with CSS variables, glassmorphism, animations, all component styles.\n3. "app.js" — All JavaScript interactivity, routing, state management, and mock data.\nDo NOT leave any file empty or as a placeholder.`;
           } else {
             healingPrompt = `CRITICAL: The last generation attempt was invalid. Error: ${attemptErr.message}. Please generate the complete structured JSON response complying with the system prompt rules.`;
           }

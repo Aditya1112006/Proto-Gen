@@ -57,6 +57,28 @@ export async function formatJS(js) {
   }
 }
 
+/**
+ * Formats CSS code using Prettier.
+ * Falls back gracefully if Prettier fails.
+ */
+export async function formatCSS(css) {
+  if (!css || typeof css !== 'string') return '';
+
+  try {
+    const formatted = await prettier.format(css, {
+      parser: 'css',
+      tabWidth: 2,
+      useTabs: false,
+      printWidth: 120,
+      singleQuote: false,
+    });
+    return formatted.trim();
+  } catch (err) {
+    console.warn('[codeFormatter] Prettier CSS failed, returning as-is:', err.message);
+    return css.trim(); // CSS is still valid without formatting
+  }
+}
+
 // ── Fallback formatters (used when Prettier is unavailable) ──────────────────
 
 function basicFormatHTML(html) {
@@ -131,4 +153,4 @@ function basicFormatJS(js) {
   return formatted.trim();
 }
 
-export default { formatHTML, formatJS };
+export default { formatHTML, formatJS, formatCSS };

@@ -31,10 +31,14 @@ function buildModelQueue() {
 const RETRY_CODES = new Set([429, 503, 500, 404]);
 
 // Token budgets per mode.
-const WORKFLOW_TOKENS  = 8192;  // increased from 4096 – complex JSON schema needs more room
-const CODE_TOKENS      = 20000;
-const WORKFLOW_TEMP    = 0.25; // low variance for structured specs
-const CODE_TEMP        = 0.4;  // slightly more creative for UI decisions
+const WORKFLOW_TOKENS  = 16384; // generous budget for rich structured specs
+const CODE_TOKENS      = 24000; // large budget for complete, high-fidelity code
+const WORKFLOW_TEMP    = 0.7;   // higher creativity → richer, more detailed specs
+const CODE_TEMP        = 0.7;   // higher creativity → more polished UI code
+
+// Thinking budget for Gemini 2.5 Flash/Pro — enables deep multi-step reasoning.
+// -1 = dynamic (model decides). Use a high fixed value for maximum quality.
+const THINKING_BUDGET  = 8192;
 
 export class LLMService {
   constructor() {
@@ -187,6 +191,7 @@ export class LLMService {
             maxOutputTokens: maxTokens,
             responseMimeType: 'application/json',
             systemInstruction: sysPrompt,
+            thinkingConfig: { thinkingBudget: THINKING_BUDGET },
           });
 
           parsed = this.parseJSON(rawRes.text);
